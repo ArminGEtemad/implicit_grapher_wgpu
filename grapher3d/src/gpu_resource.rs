@@ -9,16 +9,16 @@ use winit::{dpi::PhysicalSize, window::Window};
 
 pub struct GpuResource {
     surface: Surface<'static>,
-    device: Device,
+    pub device: Device,
     queue: Queue,
-    config: SurfaceConfiguration,
+    pub config: SurfaceConfiguration,
     size: PhysicalSize<u32>,
 }
 
 pub struct FrameContext {
     surface_tex: SurfaceTexture,
-    _view: TextureView,
-    encoder: CommandEncoder,
+    pub view: TextureView,
+    pub encoder: CommandEncoder,
 }
 
 impl GpuResource {
@@ -113,7 +113,7 @@ impl GpuResource {
 
         Ok(FrameContext {
             surface_tex,
-            _view: view,
+            view,
             encoder,
         })
     }
