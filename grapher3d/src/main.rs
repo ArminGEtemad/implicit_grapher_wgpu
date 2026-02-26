@@ -7,6 +7,7 @@ use winit::{
 
 use crate::state::State;
 
+mod gpu_connector;
 mod gpu_resource;
 mod state;
 
