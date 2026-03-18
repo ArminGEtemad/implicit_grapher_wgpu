@@ -1,3 +1,5 @@
+use std::{fs, path::PathBuf};
+
 use wgpu::{
     Color, ColorTargetState, ColorWrites, FragmentState, MultisampleState, Operations,
     PipelineCompilationOptions, PipelineLayoutDescriptor, PrimitiveState,
@@ -6,6 +8,13 @@ use wgpu::{
 };
 
 use crate::gpu_resource::{FrameContext, GpuResource};
+
+// helper function
+fn load_shader(rel_path: &str) -> String {
+    let path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(rel_path);
+    fs::read_to_string(&path)
+        .unwrap_or_else(|e| panic!("Failed to read shader {:?}\nError: {}", path, e))
+}
 
 pub struct GpuConnector {
     render_pipeline: RenderPipeline,
@@ -17,9 +26,10 @@ impl GpuConnector {
         let format = gpu_res.config.format;
 
         // connection to the shader
+        let render_source = load_shader("shaders/render_shader.wgsl");
         let render_shader = device.create_shader_module(ShaderModuleDescriptor {
             label: Some("Render shader"),
-            source: wgpu::ShaderSource::Wgsl(include_str!("../shaders/render_shader.wgsl").into()),
+            source: wgpu::ShaderSource::Wgsl(render_source.into()),
         });
 
         let pipeline_layout = device.create_pipeline_layout(&PipelineLayoutDescriptor {
@@ -60,6 +70,62 @@ impl GpuConnector {
         Self {
             render_pipeline: fullscreen_pipeline,
         }
+    }
+
+    // hot reload
+    fn reload_render_pipeline(&mut self, gpu_res: &GpuResource) {
+        // connection to the shader
+        let render_source = load_shader("shaders/render_shader.wgsl");
+        let render_shader = gpu_res.device.create_shader_module(ShaderModuleDescriptor {
+            label: Some("Render shader (Hot reload)"),
+            source: wgpu::ShaderSource::Wgsl(render_source.into()),
+        });
+
+        // rebuild pipeline
+        let pipeline_layout = gpu_res
+            .device
+            .create_pipeline_layout(&PipelineLayoutDescriptor {
+                label: Some("Fullscreen pipeline layout (hot reload)"),
+                bind_group_layouts: &[],
+                immediate_size: 0,
+            });
+
+        self.render_pipeline = gpu_res
+            .device
+            .create_render_pipeline(&RenderPipelineDescriptor {
+                label: Some("Fullscreen pipeline (Hot relod)"),
+                layout: Some(&pipeline_layout),
+                vertex: VertexState {
+                    module: &render_shader,
+                    entry_point: Some("vs_main"),
+                    compilation_options: PipelineCompilationOptions::default(),
+                    buffers: &[],
+                },
+                primitive: PrimitiveState {
+                    topology: wgpu::PrimitiveTopology::TriangleList,
+                    ..Default::default()
+                },
+                depth_stencil: None,
+                multisample: MultisampleState::default(),
+                fragment: Some(FragmentState {
+                    module: &render_shader,
+                    entry_point: Some("fs_main"),
+                    compilation_options: PipelineCompilationOptions::default(),
+                    targets: &[Some(ColorTargetState {
+                        format: gpu_res.config.format,
+                        blend: None,
+                        write_mask: ColorWrites::ALL,
+                    })],
+                }),
+                multiview_mask: None,
+                cache: None,
+            });
+    }
+
+    pub fn rebuild_pipeline(&mut self, gpu_res: &GpuResource) {
+        println!("Rebuilding render pipeline…");
+        self.reload_render_pipeline(gpu_res);
+        println!("Render pipeline reloaded!");
     }
 
     pub fn render_pass(&mut self, frame: &mut FrameContext) {
