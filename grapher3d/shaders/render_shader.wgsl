@@ -3,6 +3,14 @@ const MAX_STEPS: i32 = 100;
 const SURFACE_DIST: f32 = 0.001;
 const MAX_DIST: f32 = 100.0;
 
+struct Camera {
+    position: vec3<f32>,
+    aspect_ratio: f32,
+}
+
+@group(0) @binding(0)
+var<uniform> camera: Camera;
+
 struct VSOut {
     @builtin(position) pos: vec4<f32>,
     @location(0) uv: vec2<f32>,
@@ -46,10 +54,9 @@ fn vs_main(@builtin(vertex_index) vid: u32) -> VSOut {
 
 @fragment
 fn fs_main(in: VSOut) -> @location(0) vec4<f32> {
-    let screen_ratio = fwidth(in.uv.y) / fwidth(in.uv.x);
-    let xy = (in.uv * 2.0 - 1.0) * vec2<f32>(screen_ratio, 1.0);
+    let xy = (in.uv * 2.0 - 1.0) * vec2<f32>(camera.aspect_ratio, 1.0);
 
-    let r_o = vec3<f32>(0.0, 0.0, -3.0); // ray origin where the camera is
+    let r_o = camera.position; // ray origin where the camera is
     let r_d = normalize(vec3<f32>(xy, 1.0)); // ray direction normal vector through the pixel
 
     // marching ray loop
