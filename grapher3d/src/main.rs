@@ -9,6 +9,7 @@ use crate::state::State;
 
 mod gpu_connector;
 mod gpu_resource;
+mod shader_watcher;
 mod state;
 
 fn main() {
