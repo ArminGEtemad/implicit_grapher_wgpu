@@ -32,6 +32,8 @@ impl State {
 
     pub fn resize(&mut self, new_size: PhysicalSize<u32>) {
         self.gpu_res.resize(new_size);
+        self.connector
+            .update_camera(&self.gpu_res, new_size.width, new_size.height);
     }
 
     pub fn render(&mut self) -> Result<(), SurfaceError> {
