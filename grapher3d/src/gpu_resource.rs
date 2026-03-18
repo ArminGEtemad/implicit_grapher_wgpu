@@ -10,7 +10,7 @@ use winit::{dpi::PhysicalSize, window::Window};
 pub struct GpuResource {
     surface: Surface<'static>,
     pub device: Device,
-    queue: Queue,
+    pub queue: Queue,
     pub config: SurfaceConfiguration,
     size: PhysicalSize<u32>,
 }
