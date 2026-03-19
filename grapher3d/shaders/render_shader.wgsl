@@ -1,7 +1,8 @@
-const EPS: f32 = 0.01;
-const MAX_STEPS: i32 = 100;
+const EPS: f32 = 0.001;
+const MAX_STEPS: i32 = 128;
 const SURFACE_DIST: f32 = 0.001;
 const MAX_DIST: f32 = 100.0;
+const AXIS_THICKNESS: f32 = 0.01;
 
 struct Camera {
     position: vec3<f32>,
@@ -17,21 +18,25 @@ struct VSOut {
 };
 
 // helper functions
-// implicit sphere 
-fn get_dist(p: vec3<f32>) -> f32 {
-    let sphere_radius = 1.0;
-    let sphere_centre = vec3<f32>(0.0, 0.0, 0.0);
-    return length(p - sphere_centre) - sphere_radius; // for implicit function should be zero
+// 3D coordinates
+fn make_coordinate(p: vec3<f32>) -> f32 {
+    // make three infinite cylinders
+    let x = length(p.yz) - AXIS_THICKNESS;
+    let y = length(p.xz) - AXIS_THICKNESS;
+    let z = length(p.xy) - AXIS_THICKNESS;
+
+    let axes = min(x, min(y, z));
+    return axes;
 }
 
 // get normal for the Lambert diffusion
 // normal vector is gradient of the implicit function 
-fn calc_norm(p: vec3<f32>) -> vec3<f32> {
+fn calc_norm_coord(p: vec3<f32>) -> vec3<f32> {
     let eps_vec = vec2<f32>(EPS, 0.0);
     let grad_impl = vec3<f32>(
-        get_dist(p + eps_vec.xyy) - get_dist(p - eps_vec.xyy),
-        get_dist(p + eps_vec.yxy) - get_dist(p - eps_vec.yxy),
-        get_dist(p + eps_vec.yyx) - get_dist(p - eps_vec.yyx)
+        make_coordinate(p + eps_vec.xyy) - make_coordinate(p - eps_vec.xyy),
+        make_coordinate(p + eps_vec.yxy) - make_coordinate(p - eps_vec.yxy),
+        make_coordinate(p + eps_vec.yyx) - make_coordinate(p - eps_vec.yyx)
     );
     return normalize(grad_impl);
 }
@@ -72,7 +77,7 @@ fn fs_main(in: VSOut) -> @location(0) vec4<f32> {
 
     for (var i = 0; i < MAX_STEPS; i++) {
         let p = r_o + r_d * d_o;
-        let d_s = get_dist(p);
+        let d_s = make_coordinate(p);
         d_o += d_s;
 
         if d_o > MAX_DIST || d_s < SURFACE_DIST {
@@ -88,14 +93,27 @@ fn fs_main(in: VSOut) -> @location(0) vec4<f32> {
 
     if hit {
         let p = r_o + r_d * d_o;
-        let n = calc_norm(p);
+        let n = calc_norm_coord(p);
+        let x_dist = length(p.yz);
+        let y_dist = length(p.xz);
+        let z_dist = length(p.xy);
+
+        // axis rendering
+        if x_dist < y_dist && x_dist < z_dist {
+            color = vec3<f32>(1.0, 0.05, 0.05);
+        } else if y_dist < x_dist && y_dist < z_dist {
+            color = vec3<f32>(0.05, 1.0, 0.05);
+        } else if z_dist < x_dist && z_dist < y_dist {
+            color = vec3<f32>(0.05, 0.05, 1.0);
+        }
 
         // lambertian diffusion
-        let light_postion = vec3<f32>(0.0, 0.0, 8.0);
+        let light_postion = vec3<f32>(8.0, 8.0, 8.0);
         let l = normalize(light_postion - p);
         let diffuse = max(dot(n, l), 0.0);
-        color = vec3<f32>(0.3, 0.7, 1.0) * diffuse;
+        color *= diffuse;
         color += vec3<f32>(0.02);
+        return vec4<f32>(color, 1.0);
     }
 
     return vec4<f32>(color, 1.0);
