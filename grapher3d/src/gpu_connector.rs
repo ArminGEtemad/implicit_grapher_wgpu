@@ -24,6 +24,8 @@ fn load_shader(rel_path: &str) -> String {
 pub struct CameraUniform {
     pub position: [f32; 3],
     pub aspect_ratio: f32,
+    pub target: [f32; 3], // direction the camera is pointing at
+    _pad0: f32,
 }
 
 pub struct GpuConnector {
@@ -50,6 +52,8 @@ impl GpuConnector {
         let camera_buffer_contents = CameraUniform {
             position: [0.0, 0.0, 0.0],
             aspect_ratio: aspect_ratio,
+            target: [0.0, 0.0, 0.0],
+            _pad0: 0.0,
         };
 
         let camera_buffer = device.create_buffer_init(&BufferInitDescriptor {
@@ -132,6 +136,8 @@ impl GpuConnector {
         let updated_camera_buffer_contents = CameraUniform {
             position: [3.0, 3.0, 3.0],
             aspect_ratio: aspect_ratio,
+            target: [0.0, 0.0, 0.0],
+            _pad0: 0.0,
         };
 
         gpu_res.queue.write_buffer(
@@ -142,12 +148,16 @@ impl GpuConnector {
     }
 
     // handling position with keyboard
-    pub fn update_camera_pos(&self, gpu_res: &GpuResource, pos: [f32; 3]) {
+    pub fn update_camera_pos(&self, gpu_res: &GpuResource, pos: [f32; 3], target: [f32; 3]) {
         let aspect_ratio = gpu_res.config.width as f32 / gpu_res.config.height as f32;
+
         let updated_camera_pos_buffer_contents = CameraUniform {
             position: pos,
             aspect_ratio,
+            target,
+            _pad0: 0.0,
         };
+
         gpu_res.queue.write_buffer(
             &self.camera_buffer,
             0,
