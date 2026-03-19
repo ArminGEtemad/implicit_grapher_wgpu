@@ -48,7 +48,7 @@ impl GpuConnector {
 
         // camera
         let camera_buffer_contents = CameraUniform {
-            position: [0.0, 0.0, -3.0],
+            position: [0.0, 0.0, 0.0],
             aspect_ratio: aspect_ratio,
         };
 
@@ -130,7 +130,7 @@ impl GpuConnector {
         let aspect_ratio = width as f32 / height as f32;
 
         let updated_camera_buffer_contents = CameraUniform {
-            position: [0.0, 0.0, 3.0],
+            position: [3.0, 3.0, 3.0],
             aspect_ratio: aspect_ratio,
         };
 
