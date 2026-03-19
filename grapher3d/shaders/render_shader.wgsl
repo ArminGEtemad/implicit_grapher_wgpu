@@ -7,6 +7,7 @@ const AXIS_THICKNESS: f32 = 0.01;
 struct Camera {
     position: vec3<f32>,
     aspect_ratio: f32,
+    camera_pointing_at: vec3<f32>,
 }
 
 @group(0) @binding(0)
@@ -64,7 +65,7 @@ fn fs_main(in: VSOut) -> @location(0) vec4<f32> {
     let world_up = vec3<f32>(0.0, 1.0, 0.0);
 
     // camera vectors
-    let camera_forward = normalize(-camera.position); // ||(0, 0, 0) - camera_camera||
+    let camera_forward = normalize(camera.camera_pointing_at - camera.position);
     let camera_right = normalize(cross(camera_forward, world_up));
     let camera_up = cross(camera_right, camera_forward);
 
