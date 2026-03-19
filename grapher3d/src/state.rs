@@ -75,6 +75,7 @@ impl State {
             KeyCode::ArrowLeft => self.camera_pointing_at[0] -= sensitivity,
             KeyCode::ArrowUp => self.camera_pointing_at[1] += sensitivity,
             KeyCode::ArrowDown => self.camera_pointing_at[1] -= sensitivity,
+            KeyCode::KeyO => self.camera_pointing_at = [0.0, 0.0, 0.0],
             _ => return,
         }
 
