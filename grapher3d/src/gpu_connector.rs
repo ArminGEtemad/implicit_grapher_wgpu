@@ -130,7 +130,7 @@ impl GpuConnector {
         let aspect_ratio = width as f32 / height as f32;
 
         let updated_camera_buffer_contents = CameraUniform {
-            position: [0.0, 0.0, -3.0],
+            position: [0.0, 0.0, 3.0],
             aspect_ratio: aspect_ratio,
         };
 
@@ -138,6 +138,20 @@ impl GpuConnector {
             &self.camera_buffer,
             0,
             cast_slice(&[updated_camera_buffer_contents]),
+        );
+    }
+
+    // handling position with keyboard
+    pub fn update_camera_pos(&self, gpu_res: &GpuResource, pos: [f32; 3]) {
+        let aspect_ratio = gpu_res.config.width as f32 / gpu_res.config.height as f32;
+        let updated_camera_pos_buffer_contents = CameraUniform {
+            position: pos,
+            aspect_ratio,
+        };
+        gpu_res.queue.write_buffer(
+            &self.camera_buffer,
+            0,
+            cast_slice(&[updated_camera_pos_buffer_contents]),
         );
     }
 
