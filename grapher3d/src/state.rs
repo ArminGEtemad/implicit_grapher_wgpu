@@ -12,6 +12,7 @@ pub struct State {
     gpu_res: GpuResource,
     connector: GpuConnector,
     camera_spherical_coord: [f32; 3], // r, thera, phi
+    camera_pointing_at: [f32; 3],     // x, y, z
     shader_watcher: ShaderWatcher,
 }
 
@@ -25,6 +26,7 @@ impl State {
 
         // r theta phi
         let camera_spherical_coord = [5.19, 3.1 / 4.0, 3.1 / 4.0];
+        let camera_pointing_at = [0.0, 0.0, 0.0];
 
         let shader_watcher = ShaderWatcher::new(shader_path);
 
@@ -32,6 +34,7 @@ impl State {
             gpu_res,
             connector,
             camera_spherical_coord,
+            camera_pointing_at,
             shader_watcher,
         })
     }
@@ -46,11 +49,12 @@ impl State {
         // y = r * sin(theta) * sin(phi)
         // z = r * cos(theta)
 
-        let x = r * phi.sin() * theta.cos();
-        let y = r * phi.cos();
-        let z = r * phi.sin() * theta.sin();
+        let x = r * phi.sin() * theta.cos() + self.camera_pointing_at[0];
+        let y = r * phi.cos() + self.camera_pointing_at[1];
+        let z = r * phi.sin() * theta.sin() + self.camera_pointing_at[2];
 
-        self.connector.update_camera_pos(&self.gpu_res, [x, y, z]);
+        self.connector
+            .update_camera_pos(&self.gpu_res, [x, y, z], self.camera_pointing_at);
     }
 
     pub fn update_camera_input_keyboard(&mut self, key: KeyCode) {
@@ -67,6 +71,10 @@ impl State {
                 self.camera_spherical_coord[2] =
                     (self.camera_spherical_coord[2] + sensitivity).clamp(0.01, 3.1) // needed against gimbal lock
             }
+            KeyCode::ArrowRight => self.camera_pointing_at[0] += sensitivity,
+            KeyCode::ArrowLeft => self.camera_pointing_at[0] -= sensitivity,
+            KeyCode::ArrowUp => self.camera_pointing_at[1] += sensitivity,
+            KeyCode::ArrowDown => self.camera_pointing_at[1] -= sensitivity,
             _ => return,
         }
 
