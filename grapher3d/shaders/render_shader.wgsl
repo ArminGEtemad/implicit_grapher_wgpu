@@ -56,8 +56,15 @@ fn vs_main(@builtin(vertex_index) vid: u32) -> VSOut {
 fn fs_main(in: VSOut) -> @location(0) vec4<f32> {
     let xy = (in.uv * 2.0 - 1.0) * vec2<f32>(camera.aspect_ratio, 1.0);
 
-    let r_o = camera.position; // ray origin where the camera is
-    let r_d = normalize(vec3<f32>(xy, 1.0)); // ray direction normal vector through the pixel
+    let world_up = vec3<f32>(0.0, 1.0, 0.0);
+
+    // camera vectors
+    let camera_forward = normalize(-camera.position); // ||(0, 0, 0) - camera_camera||
+    let camera_right = normalize(cross(camera_forward, world_up));
+    let camera_up = cross(camera_right, camera_forward);
+
+    let r_o = camera.position; // ray from the camera
+    let r_d = normalize(camera_right * xy.x + camera_up * xy.y + camera_forward); // ray moves with camera
 
     // marching ray loop
     var d_o = 0.0; // distance from the origin
@@ -84,7 +91,7 @@ fn fs_main(in: VSOut) -> @location(0) vec4<f32> {
         let n = calc_norm(p);
 
         // lambertian diffusion
-        let light_postion = vec3<f32>(4.0, 4.0, -5.0);
+        let light_postion = vec3<f32>(0.0, 0.0, 8.0);
         let l = normalize(light_postion - p);
         let diffuse = max(dot(n, l), 0.0);
         color = vec3<f32>(0.3, 0.7, 1.0) * diffuse;
