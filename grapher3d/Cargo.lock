@@ -573,6 +573,7 @@ dependencies = [
 name = "grapher3d"
 version = "0.1.0"
 dependencies = [
+ "bytemuck",
  "notify",
  "pollster",
  "wgpu",

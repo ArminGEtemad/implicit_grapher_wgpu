@@ -1,10 +1,13 @@
 use std::{fs, path::PathBuf};
 
+use bytemuck::{Pod, Zeroable, cast_slice};
 use wgpu::{
-    Color, ColorTargetState, ColorWrites, FragmentState, MultisampleState, Operations,
-    PipelineCompilationOptions, PipelineLayoutDescriptor, PrimitiveState,
-    RenderPassColorAttachment, RenderPassDescriptor, RenderPipeline, RenderPipelineDescriptor,
-    ShaderModuleDescriptor, VertexState,
+    BindGroup, BindGroupDescriptor, BindGroupEntry, BindGroupLayout, BindGroupLayoutDescriptor,
+    BindGroupLayoutEntry, BindingType, Buffer, BufferUsages, Color, ColorTargetState, ColorWrites,
+    FragmentState, MultisampleState, Operations, PipelineCompilationOptions,
+    PipelineLayoutDescriptor, PrimitiveState, RenderPassColorAttachment, RenderPassDescriptor,
+    RenderPipeline, RenderPipelineDescriptor, ShaderModuleDescriptor, ShaderStages, VertexState,
+    util::{BufferInitDescriptor, DeviceExt},
 };
 
 use crate::gpu_resource::{FrameContext, GpuResource};
@@ -16,7 +19,19 @@ fn load_shader(rel_path: &str) -> String {
         .unwrap_or_else(|e| panic!("Failed to read shader {:?}\nError: {}", path, e))
 }
 
+#[repr(C)]
+#[derive(Debug, Clone, Copy, Pod, Zeroable)]
+pub struct CameraUniform {
+    pub position: [f32; 3],
+    pub aspect_ratio: f32,
+    pub target: [f32; 3], // direction the camera is pointing at
+    _pad0: f32,
+}
+
 pub struct GpuConnector {
+    camera_buffer: Buffer,
+    camera_bgl: BindGroupLayout,
+    camera_bg: BindGroup,
     render_pipeline: RenderPipeline,
 }
 
@@ -24,6 +39,7 @@ impl GpuConnector {
     pub fn new(gpu_res: &GpuResource) -> Self {
         let device = &gpu_res.device;
         let format = gpu_res.config.format;
+        let aspect_ratio = gpu_res.config.width as f32 / gpu_res.config.height as f32;
 
         // connection to the shader
         let render_source = load_shader("shaders/render_shader.wgsl");
@@ -32,9 +48,47 @@ impl GpuConnector {
             source: wgpu::ShaderSource::Wgsl(render_source.into()),
         });
 
+        // camera
+        let camera_buffer_contents = CameraUniform {
+            position: [0.0, 0.0, 0.0],
+            aspect_ratio: aspect_ratio,
+            target: [0.0, 0.0, 0.0],
+            _pad0: 0.0,
+        };
+
+        let camera_buffer = device.create_buffer_init(&BufferInitDescriptor {
+            label: Some("Camera Buffer"),
+            contents: cast_slice(&[camera_buffer_contents]),
+            usage: BufferUsages::UNIFORM | BufferUsages::COPY_DST,
+        });
+
+        let camera_bgl = device.create_bind_group_layout(&BindGroupLayoutDescriptor {
+            label: Some("Camera BGL"),
+            entries: &[BindGroupLayoutEntry {
+                binding: 0,
+                visibility: ShaderStages::FRAGMENT,
+                ty: BindingType::Buffer {
+                    ty: wgpu::BufferBindingType::Uniform,
+                    has_dynamic_offset: false,
+                    min_binding_size: None,
+                },
+                count: None,
+            }],
+        });
+
+        let camera_bg = device.create_bind_group(&BindGroupDescriptor {
+            label: Some("Camera BG"),
+            layout: &camera_bgl,
+            entries: &[BindGroupEntry {
+                binding: 0,
+                resource: camera_buffer.as_entire_binding(),
+            }],
+        });
+
+        // render layout
         let pipeline_layout = device.create_pipeline_layout(&PipelineLayoutDescriptor {
             label: Some("Fullscreen pipeline layout"),
-            bind_group_layouts: &[],
+            bind_group_layouts: &[&camera_bgl],
             immediate_size: 0,
         });
 
@@ -68,8 +122,47 @@ impl GpuConnector {
         });
 
         Self {
+            camera_buffer,
+            camera_bgl,
+            camera_bg,
             render_pipeline: fullscreen_pipeline,
         }
+    }
+
+    // update camera
+    pub fn update_camera(&self, gpu_res: &GpuResource, width: u32, height: u32) {
+        let aspect_ratio = width as f32 / height as f32;
+
+        let updated_camera_buffer_contents = CameraUniform {
+            position: [3.0, 3.0, 3.0],
+            aspect_ratio: aspect_ratio,
+            target: [0.0, 0.0, 0.0],
+            _pad0: 0.0,
+        };
+
+        gpu_res.queue.write_buffer(
+            &self.camera_buffer,
+            0,
+            cast_slice(&[updated_camera_buffer_contents]),
+        );
+    }
+
+    // handling position with keyboard
+    pub fn update_camera_pos(&self, gpu_res: &GpuResource, pos: [f32; 3], target: [f32; 3]) {
+        let aspect_ratio = gpu_res.config.width as f32 / gpu_res.config.height as f32;
+
+        let updated_camera_pos_buffer_contents = CameraUniform {
+            position: pos,
+            aspect_ratio,
+            target,
+            _pad0: 0.0,
+        };
+
+        gpu_res.queue.write_buffer(
+            &self.camera_buffer,
+            0,
+            cast_slice(&[updated_camera_pos_buffer_contents]),
+        );
     }
 
     // hot reload
@@ -86,7 +179,7 @@ impl GpuConnector {
             .device
             .create_pipeline_layout(&PipelineLayoutDescriptor {
                 label: Some("Fullscreen pipeline layout (hot reload)"),
-                bind_group_layouts: &[],
+                bind_group_layouts: &[&self.camera_bgl],
                 immediate_size: 0,
             });
 
@@ -146,6 +239,7 @@ impl GpuConnector {
             multiview_mask: None,
         });
         rpass.set_pipeline(&self.render_pipeline);
+        rpass.set_bind_group(0, &self.camera_bg, &[]);
         rpass.draw(0..3, 0..1);
     }
 }

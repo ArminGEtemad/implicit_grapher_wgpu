@@ -1,7 +1,11 @@
 use std::sync::Arc;
 
 use winit::{
-    application::ApplicationHandler, dpi::LogicalSize, event::WindowEvent, event_loop::EventLoop,
+    application::ApplicationHandler,
+    dpi::LogicalSize,
+    event::{ElementState, WindowEvent},
+    event_loop::EventLoop,
+    keyboard::PhysicalKey,
     window::Window,
 };
 
@@ -60,7 +64,19 @@ impl ApplicationHandler for App {
                 }
             }
             WindowEvent::KeyboardInput { event, .. } => {
-                println!("Keyboard Input: {:?}", event);
+                if let ElementState::Pressed = event.state {
+                    if let Some(st) = &mut self.state {
+                        if let PhysicalKey::Code(code) = event.physical_key {
+                            st.update_camera_input_keyboard(code);
+                        }
+                    }
+                }
+            }
+
+            WindowEvent::MouseWheel { delta, .. } => {
+                if let Some(st) = &mut self.state {
+                    st.update_camera_input_mouse(delta);
+                }
             }
             WindowEvent::RedrawRequested => {
                 if let Some(st) = &mut self.state {
