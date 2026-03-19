@@ -24,7 +24,7 @@ impl State {
         println!("Watching shaders at: {}", shader_path);
 
         // r theta phi
-        let camera_spherical_coord = [3.0, 0.1, 0.1];
+        let camera_spherical_coord = [5.19, 3.1 / 4.0, 3.1 / 4.0];
 
         let shader_watcher = ShaderWatcher::new(shader_path);
 
