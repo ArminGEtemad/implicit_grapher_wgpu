@@ -9,6 +9,10 @@ pub enum Token {
     Exp,
     LParent,
     RParent,
+    Sin,
+    Cos,
+    Abs,
+    Sqrt,
     EndOFInput,
 }
 
@@ -82,7 +86,16 @@ impl Lexer {
                             break;
                         }
                     }
-                    tokens.push(Token::Variable(var_str));
+
+                    // if the string is a known function
+                    match var_str.as_str() {
+                        "sin" => tokens.push(Token::Sin),
+                        "cos" => tokens.push(Token::Cos),
+                        "abs" => tokens.push(Token::Abs),
+                        "sqrt" => tokens.push(Token::Sqrt),
+                        _ => tokens.push(Token::Variable(var_str)),
+                    }
+                    //tokens.push(Token::Variable(var_str));
                 }
                 _ => {
                     chars.next();
@@ -100,6 +113,7 @@ impl Lexer {
 #[derive(Debug)]
 pub enum Expr {
     Binary(Box<Expr>, Token, Box<Expr>),
+    Unary(Token, Box<Expr>),
     Number(f32),
     Variable(String),
 }
@@ -110,6 +124,18 @@ impl Expr {
         match self {
             Expr::Number(n) => format!("{:.2}", n),
             Expr::Variable(v) => format!("p.{}", v),
+
+            Expr::Unary(op, expr) => {
+                let inner = expr.to_wgsl_code();
+                match op {
+                    Token::Sin => format!("sin({})", inner),
+                    Token::Cos => format!("cos({})", inner),
+                    Token::Abs => format!("abs({})", inner),
+                    Token::Sqrt => format!("sqrt({})", inner),
+                    _ => unreachable!(),
+                }
+            }
+
             Expr::Binary(left_expr, op, right_expr) => {
                 let l = left_expr.to_wgsl_code();
                 let r = right_expr.to_wgsl_code();
@@ -147,6 +173,24 @@ impl Parser {
     // Handle numbers and variables
     pub fn primary_handling(&mut self) -> Box<Expr> {
         match self.current().clone() {
+            Token::Sin | Token::Cos | Token::Abs | Token::Sqrt => {
+                let op = self.current().clone();
+                self.pos += 1;
+
+                if !matches!(self.current(), Token::LParent) {
+                    panic!("Expected '(' after function name");
+                }
+                self.pos += 1; // skip '('
+
+                let expr = self.weak_handle(); // parse the inside!
+
+                if !matches!(self.current(), Token::RParent) {
+                    panic!("Expected ')' after function argument");
+                }
+                self.pos += 1; // skip ')'
+
+                Box::new(Expr::Unary(op, expr))
+            }
             Token::Number(n) => {
                 self.pos += 1;
                 Box::new(Expr::Number(n))
