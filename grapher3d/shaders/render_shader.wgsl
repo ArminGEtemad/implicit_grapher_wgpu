@@ -19,6 +19,11 @@ struct VSOut {
 };
 
 // helper functions
+// get input
+fn get_implicit_formula(p: vec3<f32>) -> f32 {
+    return USER_INPUT;
+}
+
 // 3D coordinates
 fn make_coordinate(p: vec3<f32>) -> f32 {
     // make three infinite cylinders
@@ -29,15 +34,20 @@ fn make_coordinate(p: vec3<f32>) -> f32 {
     let axes = min(x, min(y, z));
     return axes;
 }
+fn get_dist(p: vec3<f32>) -> f32 {
+    let axes = make_coordinate(p);
+    let graph = get_implicit_formula(p);
+    return min(axes, graph);
+}
 
 // get normal for the Lambert diffusion
 // normal vector is gradient of the implicit function 
 fn calc_norm_coord(p: vec3<f32>) -> vec3<f32> {
     let eps_vec = vec2<f32>(EPS, 0.0);
     let grad_impl = vec3<f32>(
-        make_coordinate(p + eps_vec.xyy) - make_coordinate(p - eps_vec.xyy),
-        make_coordinate(p + eps_vec.yxy) - make_coordinate(p - eps_vec.yxy),
-        make_coordinate(p + eps_vec.yyx) - make_coordinate(p - eps_vec.yyx)
+        get_dist(p + eps_vec.xyy) - get_dist(p - eps_vec.xyy),
+        get_dist(p + eps_vec.yxy) - get_dist(p - eps_vec.yxy),
+        get_dist(p + eps_vec.yyx) - get_dist(p - eps_vec.yyx)
     );
     return normalize(grad_impl);
 }
@@ -78,7 +88,7 @@ fn fs_main(in: VSOut) -> @location(0) vec4<f32> {
 
     for (var i = 0; i < MAX_STEPS; i++) {
         let p = r_o + r_d * d_o;
-        let d_s = make_coordinate(p);
+        let d_s = get_dist(p);
         d_o += d_s;
 
         if d_o > MAX_DIST || d_s < SURFACE_DIST {
