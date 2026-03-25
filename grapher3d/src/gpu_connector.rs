@@ -10,7 +10,10 @@ use wgpu::{
     util::{BufferInitDescriptor, DeviceExt},
 };
 
-use crate::gpu_resource::{FrameContext, GpuResource};
+use crate::{
+    gpu_resource::{FrameContext, GpuResource},
+    parser::{Lexer, Parser},
+};
 
 // helper function
 fn load_shader(rel_path: &str) -> String {
@@ -36,16 +39,28 @@ pub struct GpuConnector {
 }
 
 impl GpuConnector {
+    fn create_shader_source(user_input: &str) -> String {
+        let shader = load_shader("shaders/render_shader.wgsl");
+
+        let lexer = Lexer::new(user_input);
+        let mut parser = Parser::new(lexer.tokens);
+        let ast = parser.weak_handle();
+        let wgsl_expr = ast.to_wgsl_code();
+
+        shader.replace("USER_INPUT", &wgsl_expr)
+    }
+
     pub fn new(gpu_res: &GpuResource) -> Self {
         let device = &gpu_res.device;
         let format = gpu_res.config.format;
         let aspect_ratio = gpu_res.config.width as f32 / gpu_res.config.height as f32;
+        let initial_shader = Self::create_shader_source("x*x*2 + y*y + z*z*3 - 1.0");
 
         // connection to the shader
-        let render_source = load_shader("shaders/render_shader.wgsl");
+        //let render_source = load_shader("shaders/render_shader.wgsl");
         let render_shader = device.create_shader_module(ShaderModuleDescriptor {
             label: Some("Render shader"),
-            source: wgpu::ShaderSource::Wgsl(render_source.into()),
+            source: wgpu::ShaderSource::Wgsl(initial_shader.into()),
         });
 
         // camera
@@ -166,12 +181,12 @@ impl GpuConnector {
     }
 
     // hot reload
-    fn reload_render_pipeline(&mut self, gpu_res: &GpuResource) {
+    fn reload_render_pipeline(&mut self, gpu_res: &GpuResource, user_input: &str) {
         // connection to the shader
-        let render_source = load_shader("shaders/render_shader.wgsl");
+        let input_source = Self::create_shader_source(user_input);
         let render_shader = gpu_res.device.create_shader_module(ShaderModuleDescriptor {
             label: Some("Render shader (Hot reload)"),
-            source: wgpu::ShaderSource::Wgsl(render_source.into()),
+            source: wgpu::ShaderSource::Wgsl(input_source.into()),
         });
 
         // rebuild pipeline
@@ -215,9 +230,9 @@ impl GpuConnector {
             });
     }
 
-    pub fn rebuild_pipeline(&mut self, gpu_res: &GpuResource) {
+    pub fn rebuild_pipeline(&mut self, gpu_res: &GpuResource, formula: &str) {
         println!("Rebuilding render pipeline…");
-        self.reload_render_pipeline(gpu_res);
+        self.reload_render_pipeline(gpu_res, formula);
         println!("Render pipeline reloaded!");
     }
 
