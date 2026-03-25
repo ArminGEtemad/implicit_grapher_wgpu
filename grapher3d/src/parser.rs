@@ -5,6 +5,11 @@ pub enum Token {
     Add,
     Sub,
     Multi,
+    Divide,
+    Exp,
+    LParent,
+    RParent,
+    EndOFInput,
 }
 
 pub struct Lexer {
@@ -22,7 +27,7 @@ impl Lexer {
                 ' ' => {
                     chars.next();
                 }
-                // Operations
+                // Operations (weak)
                 '+' => {
                     tokens.push(Token::Add);
                     chars.next();
@@ -31,8 +36,26 @@ impl Lexer {
                     tokens.push(Token::Sub);
                     chars.next();
                 }
+                // operations (strong)
                 '*' => {
                     tokens.push(Token::Multi);
+                    chars.next();
+                }
+                '/' => {
+                    tokens.push(Token::Divide);
+                    chars.next();
+                }
+                '^' => {
+                    tokens.push(Token::Exp);
+                    chars.next();
+                }
+                // parentheses
+                '(' => {
+                    tokens.push(Token::LParent);
+                    chars.next();
+                }
+                ')' => {
+                    tokens.push(Token::RParent);
                     chars.next();
                 }
 
@@ -66,7 +89,7 @@ impl Lexer {
                 } // Ignore unknown
             }
         }
-
+        tokens.push(Token::EndOFInput);
         Self { tokens }
     }
 }
@@ -94,6 +117,8 @@ impl Expr {
                     Token::Add => format!("({} + {})", l, r),
                     Token::Sub => format!("({} - {})", l, r),
                     Token::Multi => format!("({} * {})", l, r),
+                    Token::Divide => format!("({} / {})", l, r),
+                    Token::Exp => format!("pow({}, {})", l, r),
                     _ => unreachable!(),
                 }
             }
@@ -119,11 +144,6 @@ impl Parser {
         &self.tokens[self.pos]
     }
 
-    // are tokens done?
-    fn has_more_tokens(&self) -> bool {
-        self.pos < self.tokens.len()
-    }
-
     // Handle numbers and variables
     pub fn primary_handling(&mut self) -> Box<Expr> {
         match self.current().clone() {
@@ -135,17 +155,37 @@ impl Parser {
                 self.pos += 1;
                 Box::new(Expr::Variable(v))
             }
-            _ => panic!("unexpected token!"),
+            Token::LParent => {
+                self.pos += 1;
+                let expr = self.weak_handle();
+                if !matches!(self.current(), Token::RParent) {
+                    panic!("Expected closing parenthesis!");
+                }
+                self.pos += 1;
+                expr
+            }
+            _ => panic!("Unexpected token: {:?}", self.current()),
         }
+    }
+    // power handle
+    fn power_handle(&mut self) -> Box<Expr> {
+        let mut left = self.primary_handling();
+        while matches!(self.current(), Token::Exp) {
+            let op = self.current().clone();
+            self.pos += 1;
+            let right = self.primary_handling();
+            left = Box::new(Expr::Binary(left, op, right))
+        }
+        left
     }
 
     // Handle strong operations
     fn strong_handle(&mut self) -> Box<Expr> {
-        let mut left = self.primary_handling();
-        while self.has_more_tokens() && matches!(self.current(), Token::Multi) {
+        let mut left = self.power_handle();
+        while matches!(self.current(), Token::Multi | Token::Divide) {
             let op = self.current().clone();
             self.pos += 1;
-            let right = self.primary_handling();
+            let right = self.power_handle();
             left = Box::new(Expr::Binary(left, op, right));
         }
         left
@@ -154,7 +194,7 @@ impl Parser {
     // Handle weak operations
     pub fn weak_handle(&mut self) -> Box<Expr> {
         let mut left = self.strong_handle();
-        while self.has_more_tokens() && matches!(self.current(), Token::Add | Token::Sub) {
+        while matches!(self.current(), Token::Add | Token::Sub) {
             let op = self.current().clone();
             self.pos += 1;
             let right = self.strong_handle();
