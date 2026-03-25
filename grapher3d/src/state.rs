@@ -101,7 +101,8 @@ impl State {
     pub fn render(&mut self) -> Result<(), SurfaceError> {
         while let Ok(path) = self.shader_watcher.reciever_x.try_recv() {
             println!("Shader changed: {:?}", path);
-            self.connector.rebuild_pipeline(&self.gpu_res);
+            let place_holder = " ";
+            self.connector.rebuild_pipeline(&self.gpu_res, place_holder);
         }
 
         let mut frame: FrameContext = self.gpu_res.begin_frame()?;
