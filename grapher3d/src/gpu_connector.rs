@@ -27,8 +27,15 @@ fn load_shader(rel_path: &str) -> String {
 pub struct CameraUniform {
     pub position: [f32; 3],
     pub aspect_ratio: f32,
-    pub target: [f32; 3], // direction the camera is pointing at
-    _pad0: f32,
+
+    pub target: [f32; 3],
+    pub _pad0: f32,
+
+    pub min_bounds: [f32; 3],
+    pub _pad1: f32,
+
+    pub max_bounds: [f32; 3],
+    pub _pad2: f32,
 }
 
 pub struct GpuConnector {
@@ -54,7 +61,10 @@ impl GpuConnector {
         let device = &gpu_res.device;
         let format = gpu_res.config.format;
         let aspect_ratio = gpu_res.config.width as f32 / gpu_res.config.height as f32;
-        let initial_shader = Self::create_shader_source("x*x*2 + y*y + z*z*3 - 1.0");
+
+        // (x^2 + y^2 + z^2 + 0.5^2 - 0.2^2)^2 - 4.0 * 0.5^2 * (x^2 + y^2)
+        let initial_shader =
+            Self::create_shader_source("sin(x)*cos(y) + sin(y)*cos(z) + sin(z)*cos(x)");
 
         // connection to the shader
         //let render_source = load_shader("shaders/render_shader.wgsl");
@@ -69,6 +79,10 @@ impl GpuConnector {
             aspect_ratio: aspect_ratio,
             target: [0.0, 0.0, 0.0],
             _pad0: 0.0,
+            min_bounds: [-4.0, -4.0, -4.0],
+            _pad1: 0.0,
+            max_bounds: [4.0, 4.0, 4.0],
+            _pad2: 0.0,
         };
 
         let camera_buffer = device.create_buffer_init(&BufferInitDescriptor {
@@ -153,6 +167,10 @@ impl GpuConnector {
             aspect_ratio: aspect_ratio,
             target: [0.0, 0.0, 0.0],
             _pad0: 0.0,
+            min_bounds: [-4.0, -4.0, -4.0],
+            _pad1: 0.0,
+            max_bounds: [4.0, 4.0, 4.0],
+            _pad2: 0.0,
         };
 
         gpu_res.queue.write_buffer(
@@ -171,6 +189,10 @@ impl GpuConnector {
             aspect_ratio,
             target,
             _pad0: 0.0,
+            min_bounds: [-4.0, -4.0, -4.0],
+            _pad1: 0.0,
+            max_bounds: [4.0, 4.0, 4.0],
+            _pad2: 0.0,
         };
 
         gpu_res.queue.write_buffer(

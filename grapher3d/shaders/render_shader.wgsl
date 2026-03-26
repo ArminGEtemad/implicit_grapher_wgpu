@@ -8,7 +8,12 @@ struct Camera {
     position: vec3<f32>,
     aspect_ratio: f32,
     camera_pointing_at: vec3<f32>,
-}
+    _pad0: f32,
+    min_bounds: vec3<f32>,
+    _pad1: f32,
+    max_bounds: vec3<f32>,
+    _pad2: f32,
+};
 
 @group(0) @binding(0)
 var<uniform> camera: Camera;
@@ -24,6 +29,12 @@ fn get_implicit_formula(p: vec3<f32>) -> f32 {
     return USER_INPUT;
 }
 
+// box to render
+fn box(p: vec3<f32>, b: vec3<f32>) -> f32 {
+    let q = abs(p) - b;
+    return length(max(q, vec3<f32>(0.0))) + min(max(q.x, max(q.y, q.z)), 0.0);
+} 
+
 // 3D coordinates
 fn make_coordinate(p: vec3<f32>) -> f32 {
     // make three infinite cylinders
@@ -35,9 +46,22 @@ fn make_coordinate(p: vec3<f32>) -> f32 {
     return axes;
 }
 fn get_dist(p: vec3<f32>) -> f32 {
+    // 1. Calculate half-extents of the box from our uniforms
+    let half_size = (camera.max_bounds - camera.min_bounds) * 0.5;
+    let center = (camera.max_bounds + camera.min_bounds) * 0.5;
+
+    // 2. Distance to the bounding box
+    let d_box = box(p - center, half_size);
+
+    // 3. Distance to the user's graph
+    let d_graph = get_implicit_formula(p);
+
+    // 4. THE MAGIC: Intersection
+    // Using max(d_box, d_graph) clips the graph to the box
+    let clipped_graph = max(d_box, d_graph);
+
     let axes = make_coordinate(p);
-    let graph = get_implicit_formula(p);
-    return min(axes, graph);
+    return min(axes, clipped_graph);
 }
 
 // get normal for the Lambert diffusion
