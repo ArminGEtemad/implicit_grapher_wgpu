@@ -9,6 +9,9 @@ struct Camera {
     aspect_ratio: f32,
     camera_pointing_at: vec3<f32>,
     _pad0: f32,
+};
+
+struct PlotConfig {
     min_bounds: vec3<f32>,
     _pad1: f32,
     max_bounds: vec3<f32>,
@@ -17,6 +20,9 @@ struct Camera {
 
 @group(0) @binding(0)
 var<uniform> camera: Camera;
+
+@group(0) @binding(1)
+var<uniform> plot_config: PlotConfig;
 
 struct VSOut {
     @builtin(position) pos: vec4<f32>,
@@ -47,8 +53,8 @@ fn make_coordinate(p: vec3<f32>) -> f32 {
 }
 fn get_dist(p: vec3<f32>) -> f32 {
     // 1. Calculate half-extents of the box from our uniforms
-    let half_size = (camera.max_bounds - camera.min_bounds) * 0.5;
-    let center = (camera.max_bounds + camera.min_bounds) * 0.5;
+    let half_size = (plot_config.max_bounds - plot_config.min_bounds) * 0.5;
+    let center = (plot_config.max_bounds + plot_config.min_bounds) * 0.5;
 
     // 2. Distance to the bounding box
     let d_box = box(p - center, half_size);
