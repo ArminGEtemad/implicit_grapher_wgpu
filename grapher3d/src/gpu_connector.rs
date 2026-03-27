@@ -293,6 +293,21 @@ impl GpuConnector {
                 multiview_mask: None,
                 cache: None,
             });
+
+        self.render_bg = gpu_res.device.create_bind_group(&BindGroupDescriptor {
+            label: Some("Render BG (Hot reload)"),
+            layout: &self.render_bgl,
+            entries: &[
+                BindGroupEntry {
+                    binding: 0,
+                    resource: self.camera_buffer.as_entire_binding(),
+                },
+                BindGroupEntry {
+                    binding: 1,
+                    resource: self.plot_config_buffer.as_entire_binding(),
+                },
+            ],
+        });
     }
 
     pub fn rebuild_pipeline(&mut self, gpu_res: &GpuResource, formula: &str) {
