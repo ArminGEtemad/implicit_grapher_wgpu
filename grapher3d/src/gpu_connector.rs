@@ -27,21 +27,25 @@ fn load_shader(rel_path: &str) -> String {
 pub struct CameraUniform {
     pub position: [f32; 3],
     pub aspect_ratio: f32,
-
     pub target: [f32; 3],
     pub _pad0: f32,
+}
 
+#[repr(C)]
+#[derive(Debug, Clone, Copy, Pod, Zeroable)]
+pub struct PlotConfigUniform {
     pub min_bounds: [f32; 3],
-    pub _pad1: f32,
+    pub _pad0: f32,
 
     pub max_bounds: [f32; 3],
-    pub _pad2: f32,
+    pub _pad1: f32,
 }
 
 pub struct GpuConnector {
     camera_buffer: Buffer,
-    camera_bgl: BindGroupLayout,
-    camera_bg: BindGroup,
+    plot_config_buffer: Buffer,
+    render_bgl: BindGroupLayout,
+    render_bg: BindGroup,
     render_pipeline: RenderPipeline,
 }
 
@@ -57,14 +61,12 @@ impl GpuConnector {
         shader.replace("USER_INPUT", &wgsl_expr)
     }
 
-    pub fn new(gpu_res: &GpuResource) -> Self {
+    pub fn new(gpu_res: &GpuResource, implicit_formula: &str) -> Self {
         let device = &gpu_res.device;
         let format = gpu_res.config.format;
         let aspect_ratio = gpu_res.config.width as f32 / gpu_res.config.height as f32;
 
-        // (x^2 + y^2 + z^2 + 0.5^2 - 0.2^2)^2 - 4.0 * 0.5^2 * (x^2 + y^2)
-        let initial_shader =
-            Self::create_shader_source("sin(x)*cos(y) + sin(y)*cos(z) + sin(z)*cos(x)");
+        let initial_shader = Self::create_shader_source(implicit_formula);
 
         // connection to the shader
         //let render_source = load_shader("shaders/render_shader.wgsl");
@@ -73,16 +75,12 @@ impl GpuConnector {
             source: wgpu::ShaderSource::Wgsl(initial_shader.into()),
         });
 
-        // camera
+        // uniform buffer (camera and plot config)
         let camera_buffer_contents = CameraUniform {
             position: [0.0, 0.0, 0.0],
             aspect_ratio: aspect_ratio,
             target: [0.0, 0.0, 0.0],
             _pad0: 0.0,
-            min_bounds: [-4.0, -4.0, -4.0],
-            _pad1: 0.0,
-            max_bounds: [4.0, 4.0, 4.0],
-            _pad2: 0.0,
         };
 
         let camera_buffer = device.create_buffer_init(&BufferInitDescriptor {
@@ -91,33 +89,71 @@ impl GpuConnector {
             usage: BufferUsages::UNIFORM | BufferUsages::COPY_DST,
         });
 
-        let camera_bgl = device.create_bind_group_layout(&BindGroupLayoutDescriptor {
-            label: Some("Camera BGL"),
-            entries: &[BindGroupLayoutEntry {
-                binding: 0,
-                visibility: ShaderStages::FRAGMENT,
-                ty: BindingType::Buffer {
-                    ty: wgpu::BufferBindingType::Uniform,
-                    has_dynamic_offset: false,
-                    min_binding_size: None,
-                },
-                count: None,
-            }],
+        // Plot config
+        let plot_config_contents = PlotConfigUniform {
+            min_bounds: [0.0, 0.0, 0.0],
+            _pad0: 0.0,
+            max_bounds: [0.0, 0.0, 0.0],
+            _pad1: 0.0,
+        };
+
+        let plot_config_buffer = device.create_buffer_init(&BufferInitDescriptor {
+            label: Some("Plot Config Buffer"),
+            contents: cast_slice(&[plot_config_contents]),
+            usage: BufferUsages::UNIFORM | BufferUsages::COPY_DST,
         });
 
-        let camera_bg = device.create_bind_group(&BindGroupDescriptor {
-            label: Some("Camera BG"),
-            layout: &camera_bgl,
-            entries: &[BindGroupEntry {
-                binding: 0,
-                resource: camera_buffer.as_entire_binding(),
-            }],
+        // BGL
+        let render_bgl = device.create_bind_group_layout(&BindGroupLayoutDescriptor {
+            label: Some("Render BGL"),
+            entries: &[
+                BindGroupLayoutEntry {
+                    // camera uniform
+                    binding: 0,
+                    visibility: ShaderStages::FRAGMENT,
+                    ty: BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
+                BindGroupLayoutEntry {
+                    // plot config uniform
+                    binding: 1,
+                    visibility: ShaderStages::FRAGMENT,
+                    ty: BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
+            ],
+        });
+
+        // BG
+        let render_bg = device.create_bind_group(&BindGroupDescriptor {
+            label: Some("Render BG"),
+            layout: &render_bgl,
+            entries: &[
+                BindGroupEntry {
+                    // camera
+                    binding: 0,
+                    resource: camera_buffer.as_entire_binding(),
+                },
+                BindGroupEntry {
+                    // plot config
+                    binding: 1,
+                    resource: plot_config_buffer.as_entire_binding(),
+                },
+            ],
         });
 
         // render layout
         let pipeline_layout = device.create_pipeline_layout(&PipelineLayoutDescriptor {
             label: Some("Fullscreen pipeline layout"),
-            bind_group_layouts: &[&camera_bgl],
+            bind_group_layouts: &[&render_bgl],
             immediate_size: 0,
         });
 
@@ -152,10 +188,25 @@ impl GpuConnector {
 
         Self {
             camera_buffer,
-            camera_bgl,
-            camera_bg,
+            plot_config_buffer,
+            render_bgl,
+            render_bg,
             render_pipeline: fullscreen_pipeline,
         }
+    }
+
+    // get the limits
+    pub fn plot_limits(&self, gpu_res: &GpuResource, min_bounds: [f32; 3], max_bounds: [f32; 3]) {
+        let plot_buffer = PlotConfigUniform {
+            min_bounds,
+            _pad0: 0.0,
+            max_bounds,
+            _pad1: 0.0,
+        };
+
+        gpu_res
+            .queue
+            .write_buffer(&self.plot_config_buffer, 0, cast_slice(&[plot_buffer]));
     }
 
     // update camera
@@ -163,14 +214,10 @@ impl GpuConnector {
         let aspect_ratio = width as f32 / height as f32;
 
         let updated_camera_buffer_contents = CameraUniform {
-            position: [3.0, 3.0, 3.0],
+            position: [10.0, 10.0, 10.0],
             aspect_ratio: aspect_ratio,
             target: [0.0, 0.0, 0.0],
             _pad0: 0.0,
-            min_bounds: [-4.0, -4.0, -4.0],
-            _pad1: 0.0,
-            max_bounds: [4.0, 4.0, 4.0],
-            _pad2: 0.0,
         };
 
         gpu_res.queue.write_buffer(
@@ -189,10 +236,6 @@ impl GpuConnector {
             aspect_ratio,
             target,
             _pad0: 0.0,
-            min_bounds: [-4.0, -4.0, -4.0],
-            _pad1: 0.0,
-            max_bounds: [4.0, 4.0, 4.0],
-            _pad2: 0.0,
         };
 
         gpu_res.queue.write_buffer(
@@ -216,7 +259,7 @@ impl GpuConnector {
             .device
             .create_pipeline_layout(&PipelineLayoutDescriptor {
                 label: Some("Fullscreen pipeline layout (hot reload)"),
-                bind_group_layouts: &[&self.camera_bgl],
+                bind_group_layouts: &[&self.render_bgl],
                 immediate_size: 0,
             });
 
@@ -276,7 +319,7 @@ impl GpuConnector {
             multiview_mask: None,
         });
         rpass.set_pipeline(&self.render_pipeline);
-        rpass.set_bind_group(0, &self.camera_bg, &[]);
+        rpass.set_bind_group(0, &self.render_bg, &[]);
         rpass.draw(0..3, 0..1);
     }
 }
