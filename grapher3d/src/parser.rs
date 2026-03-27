@@ -95,7 +95,6 @@ impl Lexer {
                         "sqrt" => tokens.push(Token::Sqrt),
                         _ => tokens.push(Token::Variable(var_str)),
                     }
-                    //tokens.push(Token::Variable(var_str));
                 }
                 _ => {
                     chars.next();
