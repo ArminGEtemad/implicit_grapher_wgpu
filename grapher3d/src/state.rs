@@ -8,35 +8,60 @@ use crate::{
     shader_watcher::ShaderWatcher,
 };
 
+const ORIGIN: [f32; 3] = [0.0, 0.0, 0.0];
+
 pub struct State {
     gpu_res: GpuResource,
     connector: GpuConnector,
     camera_spherical_coord: [f32; 3], // r, thera, phi
     camera_pointing_at: [f32; 3],     // x, y, z
+    plot_limits_min: [f32; 3],        // x, y, z
+    plot_limits_max: [f32; 3],        // x, y, z
+    current_formula: String,
     shader_watcher: ShaderWatcher,
 }
 
 impl State {
     pub async fn new(window: Arc<Window>) -> Result<Self, String> {
         let gpu_res = GpuResource::new(window).await?;
-        let connector = GpuConnector::new(&gpu_res);
+        // implicit fomula
+        let implicit_fomula = "y - sin(x) - sin(z)";
+        let connector = GpuConnector::new(&gpu_res, implicit_fomula);
 
         let shader_path = format!("{}/shaders", env!("CARGO_MANIFEST_DIR"));
         println!("Watching shaders at: {}", shader_path);
 
         // r theta phi
-        let camera_spherical_coord = [5.19, 3.1 / 4.0, 3.1 / 4.0];
-        let camera_pointing_at = [0.0, 0.0, 0.0];
+        let camera_spherical_coord = [17.32, 3.1 / 4.0, 3.1 / 4.0];
+        let camera_pointing_at = ORIGIN;
+
+        // plot limits
+        let plot_limits_min = [-15.0, -15.0, -15.0];
+        let plot_limits_max = [15.0, 15.0, 15.0];
 
         let shader_watcher = ShaderWatcher::new(shader_path);
+        let current_formula = implicit_fomula.to_string();
 
-        Ok(Self {
+        let mut state = Self {
             gpu_res,
             connector,
             camera_spherical_coord,
             camera_pointing_at,
+            plot_limits_min,
+            plot_limits_max,
+            current_formula,
             shader_watcher,
-        })
+        };
+
+        state.plot_limits_config();
+        state.converter_coord_for_gpu();
+
+        Ok(state)
+    }
+
+    fn plot_limits_config(&mut self) {
+        self.connector
+            .plot_limits(&self.gpu_res, self.plot_limits_min, self.plot_limits_max);
     }
 
     fn converter_coord_for_gpu(&self) {
@@ -75,7 +100,7 @@ impl State {
             KeyCode::ArrowLeft => self.camera_pointing_at[0] -= sensitivity,
             KeyCode::ArrowUp => self.camera_pointing_at[1] += sensitivity,
             KeyCode::ArrowDown => self.camera_pointing_at[1] -= sensitivity,
-            KeyCode::KeyO => self.camera_pointing_at = [0.0, 0.0, 0.0],
+            KeyCode::KeyO => self.camera_pointing_at = ORIGIN,
             _ => return,
         }
 
@@ -99,9 +124,11 @@ impl State {
     }
 
     pub fn render(&mut self) -> Result<(), SurfaceError> {
+        self.plot_limits_config();
         while let Ok(path) = self.shader_watcher.reciever_x.try_recv() {
             println!("Shader changed: {:?}", path);
-            self.connector.rebuild_pipeline(&self.gpu_res);
+            self.connector
+                .rebuild_pipeline(&self.gpu_res, &self.current_formula);
         }
 
         let mut frame: FrameContext = self.gpu_res.begin_frame()?;

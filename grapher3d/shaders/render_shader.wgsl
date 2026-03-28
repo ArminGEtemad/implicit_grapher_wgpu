@@ -8,10 +8,21 @@ struct Camera {
     position: vec3<f32>,
     aspect_ratio: f32,
     camera_pointing_at: vec3<f32>,
-}
+    _pad0: f32,
+};
+
+struct PlotConfig {
+    min_bounds: vec3<f32>,
+    _pad1: f32,
+    max_bounds: vec3<f32>,
+    _pad2: f32,
+};
 
 @group(0) @binding(0)
 var<uniform> camera: Camera;
+
+@group(0) @binding(1)
+var<uniform> plot_config: PlotConfig;
 
 struct VSOut {
     @builtin(position) pos: vec4<f32>,
@@ -19,6 +30,17 @@ struct VSOut {
 };
 
 // helper functions
+// get input
+fn get_implicit_formula(p: vec3<f32>) -> f32 {
+    return USER_INPUT;
+}
+
+// box to render
+fn box(p: vec3<f32>, b: vec3<f32>) -> f32 {
+    let q = abs(p) - b;
+    return length(max(q, vec3<f32>(0.0))) + min(max(q.x, max(q.y, q.z)), 0.0);
+} 
+
 // 3D coordinates
 fn make_coordinate(p: vec3<f32>) -> f32 {
     // make three infinite cylinders
@@ -29,15 +51,33 @@ fn make_coordinate(p: vec3<f32>) -> f32 {
     let axes = min(x, min(y, z));
     return axes;
 }
+fn get_dist(p: vec3<f32>) -> f32 {
+    // 1. Calculate half-extents of the box from our uniforms
+    let half_size = (plot_config.max_bounds - plot_config.min_bounds) * 0.5;
+    let center = (plot_config.max_bounds + plot_config.min_bounds) * 0.5;
+
+    // 2. Distance to the bounding box
+    let d_box = box(p - center, half_size);
+
+    // 3. Distance to the user's graph
+    let d_graph = get_implicit_formula(p);
+
+    // 4. THE MAGIC: Intersection
+    // Using max(d_box, d_graph) clips the graph to the box
+    let clipped_graph = max(d_box, d_graph);
+
+    let axes = make_coordinate(p);
+    return min(axes, clipped_graph);
+}
 
 // get normal for the Lambert diffusion
 // normal vector is gradient of the implicit function 
 fn calc_norm_coord(p: vec3<f32>) -> vec3<f32> {
     let eps_vec = vec2<f32>(EPS, 0.0);
     let grad_impl = vec3<f32>(
-        make_coordinate(p + eps_vec.xyy) - make_coordinate(p - eps_vec.xyy),
-        make_coordinate(p + eps_vec.yxy) - make_coordinate(p - eps_vec.yxy),
-        make_coordinate(p + eps_vec.yyx) - make_coordinate(p - eps_vec.yyx)
+        get_implicit_formula(p + eps_vec.xyy) - get_implicit_formula(p - eps_vec.xyy),
+        get_implicit_formula(p + eps_vec.yxy) - get_implicit_formula(p - eps_vec.yxy),
+        get_implicit_formula(p + eps_vec.yyx) - get_implicit_formula(p - eps_vec.yyx)
     );
     return normalize(grad_impl);
 }
@@ -78,7 +118,7 @@ fn fs_main(in: VSOut) -> @location(0) vec4<f32> {
 
     for (var i = 0; i < MAX_STEPS; i++) {
         let p = r_o + r_d * d_o;
-        let d_s = make_coordinate(p);
+        let d_s = get_dist(p);
         d_o += d_s;
 
         if d_o > MAX_DIST || d_s < SURFACE_DIST {
@@ -95,26 +135,39 @@ fn fs_main(in: VSOut) -> @location(0) vec4<f32> {
     if hit {
         let p = r_o + r_d * d_o;
         let n = calc_norm_coord(p);
-        let x_dist = length(p.yz);
-        let y_dist = length(p.xz);
-        let z_dist = length(p.xy);
 
-        // axis rendering
-        if x_dist < y_dist && x_dist < z_dist {
-            color = vec3<f32>(1.0, 0.05, 0.05);
-        } else if y_dist < x_dist && y_dist < z_dist {
-            color = vec3<f32>(0.05, 1.0, 0.05);
-        } else if z_dist < x_dist && z_dist < y_dist {
-            color = vec3<f32>(0.05, 0.05, 1.0);
+        // distances at the hit point to see "who" is hit
+        let d_axes = make_coordinate(p);
+        let d_graph = get_implicit_formula(p);
+
+        var base_color = vec3<f32>(0.0);
+
+        // Check if we hit the Graph first
+        if d_graph < d_axes {
+            // shape 
+            base_color = vec3<f32>(0.8, 0.8, 0.9);
+        } else {
+            // hit an axis, now determine which one
+            let x_dist = length(p.yz);
+            let y_dist = length(p.xz);
+            let z_dist = length(p.xy);
+
+            if x_dist < y_dist && x_dist < z_dist {
+                base_color = vec3<f32>(1.0, 0.1, 0.1); // Red X
+            } else if y_dist < z_dist {
+                base_color = vec3<f32>(0.1, 1.0, 0.1); // Green Y
+            } else {
+                base_color = vec3<f32>(0.1, 0.1, 1.0); // Blue Z
+            }
         }
 
-        // lambertian diffusion
-        let light_postion = vec3<f32>(8.0, 8.0, 8.0);
-        let l = normalize(light_postion - p);
+        // Lighting
+        let light_position = vec3<f32>(8.0, 8.0, 8.0);
+        let l = normalize(light_position - p);
         let diffuse = max(dot(n, l), 0.0);
-        color *= diffuse;
-        color += vec3<f32>(0.02);
-        return vec4<f32>(color, 1.0);
+
+        let final_color = base_color * diffuse + 0.01;
+        return vec4<f32>(final_color, 1.0);
     }
 
     return vec4<f32>(color, 1.0);

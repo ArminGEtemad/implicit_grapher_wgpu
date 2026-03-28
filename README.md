@@ -17,6 +17,12 @@ I am planning to re-use the small render graph I make for my first WGPU project,
 
 ## Milestones
 
+### Second Focus
+
+- [x] Basic Transpiler
+- [ ] Handling User Implicit Equation in Realtime
+- [ ] Handling Shading artifacts and dark spots
+
 ### First Focus
 
 - [x] Basic WGPU setup
@@ -39,6 +45,48 @@ I am planning to re-use the small render graph I make for my first WGPU project,
 | O           | Camera points towards the origin of the coordinates |
 
 ## Screen Shots and GIFs
+
+### Second Focus
+
+Program can handle human readable math inputs and turn it into WGSL function
+
+```math
+f(x, y, z) = y - sin(x) - sin(z)
+```
+
+<div style="display: flex; gap: 100px; align-items: flex-start;">
+
+  <div>
+    <img src="docs/Pics/First.png" width="1000"/>
+  </div>
+
+</div>
+
+```math
+f(x, y, z) = (x^2 + y^2 + z^2 + 0.5^2 - 0.2^2)^2 - 4.0 \cdot 0.5^2 \cdot (x^2 + y^2)
+```
+
+<div style="display: flex; gap: 100px; align-items: flex-start;">
+
+  <div>
+    <img src="docs/Pics/Second.png" width="1000"/>
+  </div>
+
+</div>
+
+```math
+f(x, y, z) = sin^2(x) + sin^2(y) + sin^2(z) - 0.5
+```
+
+<div style="display: flex; gap: 100px; align-items: flex-start;">
+
+  <div>
+    <img src="docs/Pics/Third.png" width="1000"/>
+  </div>
+
+</div>
+
+### First Focus
 
 For now the program has a basic 3D axes for the coordinate sytem.
 
