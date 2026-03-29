@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::sync::{Arc, mpsc};
 use wgpu::SurfaceError;
 use winit::{dpi::PhysicalSize, event::MouseScrollDelta, keyboard::KeyCode, window::Window};
 
@@ -93,11 +93,6 @@ impl State {
         let sensitivity = 0.05;
 
         match key {
-            // TODO: Just to make sure the update formula works. needs a new place later ---------
-            KeyCode::KeyG => self.update_formula("x^2 + y^2 + z^2 - 4.0"),
-            KeyCode::KeyH => self
-                .update_formula("(x^2 + y^2 + z^2 + 0.5^2 - 0.2^2)^2 - 4.0 * 0.5^2 * (x^2 + y^2)"),
-            // -------------------------------------------------------------------------------------
             KeyCode::KeyA => self.camera_spherical_coord[1] += sensitivity,
             KeyCode::KeyD => self.camera_spherical_coord[1] -= sensitivity,
             KeyCode::KeyW => {
@@ -135,7 +130,11 @@ impl State {
             .update_camera(&self.gpu_res, new_size.width, new_size.height);
     }
 
-    pub fn render(&mut self) -> Result<(), SurfaceError> {
+    pub fn render(&mut self, rx: &mpsc::Receiver<String>) -> Result<(), SurfaceError> {
+        while let Ok(input_formula) = rx.try_recv() {
+            self.update_formula(&input_formula);
+        }
+
         self.plot_limits_config();
         while let Ok(path) = self.shader_watcher.reciever_x.try_recv() {
             println!("Shader changed: {:?}", path);
