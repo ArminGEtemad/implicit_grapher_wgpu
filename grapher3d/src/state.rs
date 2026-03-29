@@ -64,6 +64,13 @@ impl State {
             .plot_limits(&self.gpu_res, self.plot_limits_min, self.plot_limits_max);
     }
 
+    fn update_formula(&mut self, new_equation: &str) {
+        println!("Injecting the new equation: {}", new_equation);
+        self.current_formula = new_equation.to_string();
+        self.connector
+            .rebuild_pipeline(&self.gpu_res, &self.current_formula);
+    }
+
     fn converter_coord_for_gpu(&self) {
         let r = self.camera_spherical_coord[0];
         let theta = self.camera_spherical_coord[1];
@@ -86,6 +93,11 @@ impl State {
         let sensitivity = 0.05;
 
         match key {
+            // TODO: Just to make sure the update formula works. needs a new place later ---------
+            KeyCode::KeyG => self.update_formula("x^2 + y^2 + z^2 - 4.0"),
+            KeyCode::KeyH => self
+                .update_formula("(x^2 + y^2 + z^2 + 0.5^2 - 0.2^2)^2 - 4.0 * 0.5^2 * (x^2 + y^2)"),
+            // -------------------------------------------------------------------------------------
             KeyCode::KeyA => self.camera_spherical_coord[1] += sensitivity,
             KeyCode::KeyD => self.camera_spherical_coord[1] -= sensitivity,
             KeyCode::KeyW => {
