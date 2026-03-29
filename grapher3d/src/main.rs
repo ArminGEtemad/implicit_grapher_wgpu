@@ -1,4 +1,10 @@
-use std::sync::Arc;
+use std::{
+    sync::{
+        Arc,
+        mpsc::{self, Receiver},
+    },
+    thread,
+};
 
 use winit::{
     application::ApplicationHandler,
@@ -18,17 +24,40 @@ mod shader_watcher;
 mod state;
 
 fn main() {
+    // waiting for the new equation on terminal
+    let (tx, rx) = mpsc::channel::<String>();
+    thread::spawn(move || {
+        loop {
+            let mut input = String::new();
+            if std::io::stdin().read_line(&mut input).is_ok() {
+                let trimmed = input.trim().to_string();
+                if !trimmed.is_empty() {
+                    tx.send(trimmed).unwrap();
+                }
+            }
+        }
+    });
     let event_loop = EventLoop::new().expect("Failed to create Event Loop");
     event_loop.set_control_flow(winit::event_loop::ControlFlow::Wait);
 
-    let mut app = App::default();
+    let mut app = App::new(rx);
     let _ = event_loop.run_app(&mut app);
 }
 
-#[derive(Default)]
 struct App {
     window: Option<Arc<Window>>,
     state: Option<State>,
+    rx: Receiver<String>,
+}
+
+impl App {
+    fn new(rx: Receiver<String>) -> Self {
+        Self {
+            window: None,
+            state: None,
+            rx,
+        }
+    }
 }
 
 impl ApplicationHandler for App {
@@ -81,7 +110,7 @@ impl ApplicationHandler for App {
             }
             WindowEvent::RedrawRequested => {
                 if let Some(st) = &mut self.state {
-                    let _ = st.render();
+                    let _ = st.render(&self.rx);
                 }
             }
             _ => {}
