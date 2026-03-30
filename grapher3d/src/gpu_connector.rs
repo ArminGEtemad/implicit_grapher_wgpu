@@ -50,15 +50,15 @@ pub struct GpuConnector {
 }
 
 impl GpuConnector {
-    fn create_shader_source(user_input: &str) -> String {
+    fn create_shader_source(user_input: &str) -> Result<String, String> {
         let shader = load_shader("shaders/render_shader.wgsl");
 
         let lexer = Lexer::new(user_input);
         let mut parser = Parser::new(lexer.tokens);
-        let ast = parser.weak_handle();
+        let ast = parser.weak_handle()?;
         let wgsl_expr = ast.to_wgsl_code();
 
-        shader.replace("USER_INPUT", &wgsl_expr)
+        Ok(shader.replace("USER_INPUT", &wgsl_expr))
     }
 
     pub fn new(gpu_res: &GpuResource, implicit_formula: &str) -> Self {
@@ -66,7 +66,8 @@ impl GpuConnector {
         let format = gpu_res.config.format;
         let aspect_ratio = gpu_res.config.width as f32 / gpu_res.config.height as f32;
 
-        let initial_shader = Self::create_shader_source(implicit_formula);
+        let initial_shader =
+            Self::create_shader_source(implicit_formula).expect("Initial formula failed to parse!");
 
         // connection to the shader
         //let render_source = load_shader("shaders/render_shader.wgsl");
@@ -246,12 +247,12 @@ impl GpuConnector {
     }
 
     // hot reload
-    fn reload_render_pipeline(&mut self, gpu_res: &GpuResource, user_input: &str) {
+    fn reload_render_pipeline(&mut self, gpu_res: &GpuResource, shader_source: &str) {
         // connection to the shader
-        let input_source = Self::create_shader_source(user_input);
+
         let render_shader = gpu_res.device.create_shader_module(ShaderModuleDescriptor {
             label: Some("Render shader (Hot reload)"),
-            source: wgpu::ShaderSource::Wgsl(input_source.into()),
+            source: wgpu::ShaderSource::Wgsl(shader_source.into()),
         });
 
         // rebuild pipeline
@@ -311,9 +312,15 @@ impl GpuConnector {
     }
 
     pub fn rebuild_pipeline(&mut self, gpu_res: &GpuResource, formula: &str) {
-        println!("Rebuilding render pipeline…");
-        self.reload_render_pipeline(gpu_res, formula);
-        println!("Render pipeline reloaded!");
+        match Self::create_shader_source(formula) {
+            Ok(full_shader_code) => {
+                println!("Valid formula. Rebuilding pipeline...");
+                self.reload_render_pipeline(gpu_res, &full_shader_code);
+            }
+            Err(e) => {
+                println!("Math Error: {}. Keeping last valid shape.", e);
+            }
+        }
     }
 
     pub fn render_pass(&mut self, frame: &mut FrameContext) {

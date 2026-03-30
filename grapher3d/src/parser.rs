@@ -170,79 +170,79 @@ impl Parser {
     }
 
     // Handle numbers and variables
-    pub fn primary_handling(&mut self) -> Box<Expr> {
+    pub fn primary_handling(&mut self) -> Result<Box<Expr>, String> {
         match self.current().clone() {
             Token::Sin | Token::Cos | Token::Abs | Token::Sqrt => {
                 let op = self.current().clone();
                 self.pos += 1;
 
                 if !matches!(self.current(), Token::LParent) {
-                    panic!("Expected '(' after function name");
+                    return Err("Expected '(' after function name".to_string());
                 }
                 self.pos += 1; // skip '('
 
-                let expr = self.weak_handle(); // parse the inside!
+                let expr = self.weak_handle()?; // parse the inside!
 
                 if !matches!(self.current(), Token::RParent) {
-                    panic!("Expected ')' after function argument");
+                    return Err("Expected ')' after function argument".to_string());
                 }
                 self.pos += 1; // skip ')'
 
-                Box::new(Expr::Unary(op, expr))
+                Ok(Box::new(Expr::Unary(op, expr)))
             }
             Token::Number(n) => {
                 self.pos += 1;
-                Box::new(Expr::Number(n))
+                Ok(Box::new(Expr::Number(n)))
             }
             Token::Variable(v) => {
                 self.pos += 1;
-                Box::new(Expr::Variable(v))
+                Ok(Box::new(Expr::Variable(v)))
             }
             Token::LParent => {
                 self.pos += 1;
-                let expr = self.weak_handle();
+                let expr = self.weak_handle()?;
                 if !matches!(self.current(), Token::RParent) {
-                    panic!("Expected closing parenthesis!");
+                    return Err("Expected closing parenthesis!".to_string());
                 }
                 self.pos += 1;
-                expr
+                Ok(expr)
             }
-            _ => panic!("Unexpected token: {:?}", self.current()),
+            _ => Err(format!("Unexpected token: {:?}", self.current())),
         }
     }
     // power handle
-    fn power_handle(&mut self) -> Box<Expr> {
-        let mut left = self.primary_handling();
+    fn power_handle(&mut self) -> Result<Box<Expr>, String> {
+        let mut left = self.primary_handling()?;
         while matches!(self.current(), Token::Exp) {
             let op = self.current().clone();
             self.pos += 1;
-            let right = self.primary_handling();
-            left = Box::new(Expr::Binary(left, op, right))
+            let right = self.primary_handling()?;
+            left = Box::new(Expr::Binary(left, op, right));
         }
-        left
+        Ok(left)
     }
 
     // Handle strong operations
-    fn strong_handle(&mut self) -> Box<Expr> {
-        let mut left = self.power_handle();
+    fn strong_handle(&mut self) -> Result<Box<Expr>, String> {
+        let mut left = self.power_handle()?;
         while matches!(self.current(), Token::Multi | Token::Divide) {
             let op = self.current().clone();
             self.pos += 1;
-            let right = self.power_handle();
+            let right = self.power_handle()?;
             left = Box::new(Expr::Binary(left, op, right));
         }
-        left
+        Ok(left)
     }
 
     // Handle weak operations
-    pub fn weak_handle(&mut self) -> Box<Expr> {
-        let mut left = self.strong_handle();
+    pub fn weak_handle(&mut self) -> Result<Box<Expr>, String> {
+        let mut left = self.strong_handle()?;
         while matches!(self.current(), Token::Add | Token::Sub) {
             let op = self.current().clone();
             self.pos += 1;
-            let right = self.strong_handle();
+            let right = self.strong_handle()?;
             left = Box::new(Expr::Binary(left, op, right));
         }
-        left
+        Ok(left)
     }
 }
