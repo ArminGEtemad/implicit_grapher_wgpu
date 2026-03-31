@@ -17,6 +17,7 @@ use crate::{
 };
 
 const ORIGIN: [f32; 3] = [0.0, 0.0, 0.0];
+const PLOT_LIMIT_SAFTY: f32 = 0.1;
 
 pub struct State {
     gpu_res: GpuResource,
@@ -116,10 +117,13 @@ impl State {
     fn update_camera_input_keyboard(&mut self, key: KeyCode) {
         let shift_pressed = self.pressed_keys.contains(&KeyCode::ShiftLeft)
             || self.pressed_keys.contains(&KeyCode::ShiftRight);
-        let sensitivity = if shift_pressed { 0.1 } else { 0.05 };
+        let ctrl_pressed = self.pressed_keys.contains(&KeyCode::ControlLeft)
+            || self.pressed_keys.contains(&KeyCode::ControlRight);
         let x_pressed = self.pressed_keys.contains(&KeyCode::KeyX);
         let y_pressed = self.pressed_keys.contains(&KeyCode::KeyY);
         let z_pressed = self.pressed_keys.contains(&KeyCode::KeyZ);
+
+        let sensitivity = if shift_pressed { 0.1 } else { 0.05 };
 
         match key {
             // moving along the axes
@@ -146,6 +150,61 @@ impl State {
                     return;
                 }
             }
+
+            KeyCode::ArrowUp => {
+                if ctrl_pressed {
+                    if x_pressed {
+                        self.plot_limits_max[0] += sensitivity;
+                    } else if z_pressed {
+                        self.plot_limits_max[1] += sensitivity;
+                    } else if y_pressed {
+                        self.plot_limits_max[2] += sensitivity;
+                    } else {
+                        return;
+                    }
+                } else {
+                    if x_pressed {
+                        self.plot_limits_min[0] = (self.plot_limits_min[0] + sensitivity)
+                            .min(self.plot_limits_max[0] - PLOT_LIMIT_SAFTY);
+                    } else if z_pressed {
+                        self.plot_limits_min[1] = (self.plot_limits_min[1] + sensitivity)
+                            .min(self.plot_limits_max[1] - PLOT_LIMIT_SAFTY);
+                    } else if y_pressed {
+                        self.plot_limits_min[2] = (self.plot_limits_min[2] + sensitivity)
+                            .min(self.plot_limits_max[2] - PLOT_LIMIT_SAFTY);
+                    } else {
+                        return;
+                    }
+                }
+            }
+
+            KeyCode::ArrowDown => {
+                if ctrl_pressed {
+                    if x_pressed {
+                        self.plot_limits_max[0] = (self.plot_limits_max[0] - sensitivity)
+                            .max(self.plot_limits_min[0] + PLOT_LIMIT_SAFTY);
+                    } else if z_pressed {
+                        self.plot_limits_max[1] = (self.plot_limits_max[1] - sensitivity)
+                            .max(self.plot_limits_min[1] + PLOT_LIMIT_SAFTY);
+                    } else if y_pressed {
+                        self.plot_limits_max[2] = (self.plot_limits_max[2] - sensitivity)
+                            .max(self.plot_limits_min[2] + PLOT_LIMIT_SAFTY);
+                    } else {
+                        return;
+                    }
+                } else {
+                    if x_pressed {
+                        self.plot_limits_min[0] -= sensitivity;
+                    } else if z_pressed {
+                        self.plot_limits_min[1] -= sensitivity;
+                    } else if y_pressed {
+                        self.plot_limits_min[2] -= sensitivity;
+                    } else {
+                        return;
+                    }
+                }
+            }
+
             KeyCode::KeyA => self.camera_spherical_coord[1] += sensitivity,
             KeyCode::KeyD => self.camera_spherical_coord[1] -= sensitivity,
             KeyCode::KeyW => {
@@ -162,6 +221,7 @@ impl State {
         }
 
         self.converter_coord_for_gpu();
+        self.plot_limits_config();
     }
 
     pub fn update_camera_input_mouse(&mut self, delta: MouseScrollDelta) {
@@ -185,7 +245,6 @@ impl State {
             self.update_formula(&input_formula);
         }
 
-        self.plot_limits_config();
         while let Ok(path) = self.shader_watcher.reciever_x.try_recv() {
             println!("Shader changed: {:?}", path);
             self.connector
