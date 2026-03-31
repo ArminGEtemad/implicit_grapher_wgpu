@@ -7,12 +7,8 @@ use std::{
 };
 
 use winit::{
-    application::ApplicationHandler,
-    dpi::LogicalSize,
-    event::{ElementState, WindowEvent},
-    event_loop::EventLoop,
-    keyboard::PhysicalKey,
-    window::Window,
+    application::ApplicationHandler, dpi::LogicalSize, event::WindowEvent, event_loop::EventLoop,
+    keyboard::PhysicalKey, window::Window,
 };
 
 use crate::state::State;
@@ -24,6 +20,8 @@ mod shader_watcher;
 mod state;
 
 fn main() {
+    let event_loop = EventLoop::new().expect("Failed to create Event Loop");
+    event_loop.set_control_flow(winit::event_loop::ControlFlow::Wait);
     // waiting for the new equation on terminal
     let (tx, rx) = mpsc::channel::<String>();
     thread::spawn(move || {
@@ -37,9 +35,6 @@ fn main() {
             }
         }
     });
-    let event_loop = EventLoop::new().expect("Failed to create Event Loop");
-    event_loop.set_control_flow(winit::event_loop::ControlFlow::Wait);
-
     let mut app = App::new(rx);
     let _ = event_loop.run_app(&mut app);
 }
@@ -94,11 +89,9 @@ impl ApplicationHandler for App {
                 }
             }
             WindowEvent::KeyboardInput { event, .. } => {
-                if let ElementState::Pressed = event.state {
-                    if let Some(st) = &mut self.state {
-                        if let PhysicalKey::Code(code) = event.physical_key {
-                            st.update_camera_input_keyboard(code);
-                        }
+                if let Some(st) = &mut self.state {
+                    if let PhysicalKey::Code(code) = event.physical_key {
+                        st.handle_key_event(code, event.state);
                     }
                 }
             }
