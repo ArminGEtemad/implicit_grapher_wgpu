@@ -196,7 +196,16 @@ impl Parser {
             }
             Token::Variable(v) => {
                 self.pos += 1;
-                Ok(Box::new(Expr::Variable(v)))
+
+                // only x, y, and z are correct variables
+                if v == "x" || v == "y" || v == "z" {
+                    Ok(Box::new(Expr::Variable(v)))
+                } else {
+                    Err(format!(
+                        "Unknown Variable: {}, Only x, y and z are allowed!",
+                        v
+                    ))
+                }
             }
             Token::LParent => {
                 self.pos += 1;
