@@ -1,6 +1,14 @@
-use std::sync::{Arc, mpsc};
+use std::{
+    collections::HashSet,
+    sync::{Arc, mpsc},
+};
 use wgpu::SurfaceError;
-use winit::{dpi::PhysicalSize, event::MouseScrollDelta, keyboard::KeyCode, window::Window};
+use winit::{
+    dpi::PhysicalSize,
+    event::{ElementState, MouseScrollDelta},
+    keyboard::KeyCode,
+    window::Window,
+};
 
 use crate::{
     gpu_connector::GpuConnector,
@@ -13,6 +21,7 @@ const ORIGIN: [f32; 3] = [0.0, 0.0, 0.0];
 pub struct State {
     gpu_res: GpuResource,
     connector: GpuConnector,
+    pressed_keys: HashSet<KeyCode>,
     camera_spherical_coord: [f32; 3], // r, thera, phi
     camera_pointing_at: [f32; 3],     // x, y, z
     plot_limits_min: [f32; 3],        // x, y, z
@@ -41,10 +50,12 @@ impl State {
 
         let shader_watcher = ShaderWatcher::new(shader_path);
         let current_formula = implicit_fomula.to_string();
+        println!("Currently Showing: {}", current_formula);
 
         let mut state = Self {
             gpu_res,
             connector,
+            pressed_keys: HashSet::new(),
             camera_spherical_coord,
             camera_pointing_at,
             plot_limits_min,
@@ -69,6 +80,7 @@ impl State {
         self.current_formula = new_equation.to_string();
         self.connector
             .rebuild_pipeline(&self.gpu_res, &self.current_formula);
+        println!("Awaiting new implicit equation!");
     }
 
     fn converter_coord_for_gpu(&self) {
@@ -89,10 +101,51 @@ impl State {
             .update_camera_pos(&self.gpu_res, [x, y, z], self.camera_pointing_at);
     }
 
-    pub fn update_camera_input_keyboard(&mut self, key: KeyCode) {
-        let sensitivity = 0.05;
+    pub fn handle_key_event(&mut self, key: KeyCode, element_state: ElementState) {
+        match element_state {
+            ElementState::Pressed => {
+                self.pressed_keys.insert(key);
+                self.update_camera_input_keyboard(key);
+            }
+            ElementState::Released => {
+                self.pressed_keys.remove(&key);
+            }
+        }
+    }
+
+    fn update_camera_input_keyboard(&mut self, key: KeyCode) {
+        let shift_pressed = self.pressed_keys.contains(&KeyCode::ShiftLeft)
+            || self.pressed_keys.contains(&KeyCode::ShiftRight);
+        let sensitivity = if shift_pressed { 0.1 } else { 0.05 };
+        let x_pressed = self.pressed_keys.contains(&KeyCode::KeyX);
+        let y_pressed = self.pressed_keys.contains(&KeyCode::KeyY);
+        let z_pressed = self.pressed_keys.contains(&KeyCode::KeyZ);
 
         match key {
+            // moving along the axes
+            KeyCode::ArrowRight => {
+                if x_pressed {
+                    self.camera_pointing_at[0] += sensitivity;
+                } else if z_pressed {
+                    self.camera_pointing_at[1] += sensitivity;
+                } else if y_pressed {
+                    self.camera_pointing_at[2] += sensitivity;
+                } else {
+                    return;
+                }
+            }
+
+            KeyCode::ArrowLeft => {
+                if x_pressed {
+                    self.camera_pointing_at[0] -= sensitivity;
+                } else if z_pressed {
+                    self.camera_pointing_at[1] -= sensitivity;
+                } else if y_pressed {
+                    self.camera_pointing_at[2] -= sensitivity;
+                } else {
+                    return;
+                }
+            }
             KeyCode::KeyA => self.camera_spherical_coord[1] += sensitivity,
             KeyCode::KeyD => self.camera_spherical_coord[1] -= sensitivity,
             KeyCode::KeyW => {
@@ -103,11 +156,8 @@ impl State {
                 self.camera_spherical_coord[2] =
                     (self.camera_spherical_coord[2] + sensitivity).clamp(0.01, 3.1) // needed against gimbal lock
             }
-            KeyCode::ArrowRight => self.camera_pointing_at[0] += sensitivity,
-            KeyCode::ArrowLeft => self.camera_pointing_at[0] -= sensitivity,
-            KeyCode::ArrowUp => self.camera_pointing_at[1] += sensitivity,
-            KeyCode::ArrowDown => self.camera_pointing_at[1] -= sensitivity,
             KeyCode::KeyO => self.camera_pointing_at = ORIGIN,
+
             _ => return,
         }
 
