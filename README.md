@@ -13,15 +13,14 @@ in real time using GPU raymarching.
 
 This project is my second large learning project journey into GPU programming.
 
-I am planning to re-use the small render graph I make for my first WGPU project, which was [reaction_diffusion_wgpu](https://github.com/ArminGEtemad/reaction_diffusion_wgpu).
-
 ## Milestones
 
 ### Second Focus
 
 - [x] Basic Transpiler
-- [ ] Handling User Implicit Equation in Realtime
+- [x] Handling User Implicit Equation in Realtime
 - [ ] Handling Shading artifacts and dark spots
+- [ ] Adding a better camera (Quaternions)
 
 ### First Focus
 
@@ -31,18 +30,47 @@ I am planning to re-use the small render graph I make for my first WGPU project,
 
 ## Interactivity
 
-| Key         | What it does                                        |
-| ----------- | --------------------------------------------------- |
-| W           | Rotate camera upwards vertically                    |
-| A           | Rotate camera to left horizontally                  |
-| S           | Rotate camera downwards vertically                  |
-| D           | Rotate camera to right horizontally                 |
-| Arrow Up    | Slide camera along positive y axis                  |
-| Arrow Down  | Slide camera along negative y axis                  |
-| Arrow Right | Slide camera along positive x axis                  |
-| Arrow Left  | Slide camera along negative x axis                  |
-| Mouse wheel | Camera zoom in and out                              |
-| O           | Camera points towards the origin of the coordinates |
+### Implicit Equation Input
+
+The user can type the implicit equation in the terminal and press enter. The program grapher plots the equation in realtime and there is no need to rerun the program. Right now the prgram handles the operations:
+
+| Supported Operations | what it is     |
+| -------------------- | -------------- |
+| +                    | Addition       |
+| -                    | Subtraction    |
+| \*                   | Multiplication |
+| /                    | Division       |
+| ^                    | Exponentiation |
+
+and the functions
+
+| Supported functions | what it is     |
+| ------------------- | -------------- |
+| sin()               | Sine           |
+| cos()               | Cosine         |
+| abs()               | Absolute value |
+| sqrt()              | Square Root    |
+
+### Camera & Plot Limits
+
+| Key                            | What it does                                                         |
+| ------------------------------ | -------------------------------------------------------------------- |
+| W                              | Rotate camera upwards vertically                                     |
+| A                              | Rotate camera to left horizontally                                   |
+| S                              | Rotate camera downwards vertically                                   |
+| D                              | Rotate camera to right horizontally                                  |
+| x + Arrow Right/Arrow Left     | Slide camera along positive/negative x axis                          |
+| y + Arrow Right/Arrow Left     | Slide camera along positive/negative y axis                          |
+| z + Arrow Right/Arrow Left     | Slide camera along positive/negative z axis                          |
+| x + Arrow Up/Arrow Down        | Increasing/Decreasing the minimum of the plot limit along the x axis |
+| y + Arrow Up/Arrow Down        | Increasing/Decreasing the minimum of the plot limit along the y axis |
+| z + Arrow Up/Arrow Down        | Increasing/Decreasing the minimum of the plot limit along the z axis |
+| Ctrl + x + Arrow Up/Arrow Down | Increasing/Decreasing the maximum of the plot limit along the x axis |
+| Ctrl + y + Arrow Up/Arrow Down | Increasing/Decreasing the maximum of the plot limit along the y axis |
+| Ctrl + z + Arrow Up/Arrow Down | Increasing/Decreasing the maximum of the plot limit along the z axis |
+| Shift (hold)                   | Doubles the speed of camera movement and change in plot limits       |
+| Mouse wheel                    | Camera zoom in and out                                               |
+| O                              | Camera points towards the origin of the coordinates                  |
 
 ## Screen Shots and GIFs
 
