@@ -1,8 +1,10 @@
-const EPS: f32 = 0.001;
-const MAX_STEPS: i32 = 128;
-const SURFACE_DIST: f32 = 0.001;
+const EPS: f32 = 0.1;
+const MAX_STEPS: i32 = 256;
+const SURFACE_DIST: f32 = 0.0001;
 const MAX_DIST: f32 = 100.0;
-const AXIS_THICKNESS: f32 = 0.01;
+const AXIS_THICKNESS: f32 = 0.1;
+const WORLD_UP: vec3<f32> = vec3<f32>(0.0, 1.0, 0.0);
+const ZERO_VECTOR: vec3<f32> = vec3<f32>(0.0, 0.0, 0.0);
 
 struct Camera {
     position: vec3<f32>,
@@ -35,43 +37,38 @@ fn get_implicit_formula(p: vec3<f32>) -> f32 {
     return USER_INPUT;
 }
 
-// box to render
-fn box(p: vec3<f32>, b: vec3<f32>) -> f32 {
-    let q = abs(p) - b;
-    return length(max(q, vec3<f32>(0.0))) + min(max(q.x, max(q.y, q.z)), 0.0);
-} 
-
-// 3D coordinates
-fn make_coordinate(p: vec3<f32>) -> f32 {
-    // make three infinite cylinders
-    let x = length(p.yz) - AXIS_THICKNESS;
-    let y = length(p.xz) - AXIS_THICKNESS;
-    let z = length(p.xy) - AXIS_THICKNESS;
-
-    let axes = min(x, min(y, z));
-    return axes;
+// put boundaries by making a box and then use it to intersect with the shape
+fn boundary_box(p: vec3<f32>, min_bounds: vec3<f32>, max_bounds: vec3<f32>) -> f32 {
+    let half_length = (max_bounds - min_bounds) * 0.5;
+    let center = (max_bounds + min_bounds) * 0.5;
+    let q = abs(p - center) - half_length;
+    return length(max(q, ZERO_VECTOR)) + min(max(q.x, max(q.y, q.z)), 0.0);
 }
+
+// draw axes
+fn get_axes(p: vec3<f32>) -> f32 {
+    // SDF for cylinder
+    let x_axis = length(p.yz) - AXIS_THICKNESS;
+    let z_axis = length(p.xy) - AXIS_THICKNESS;
+    let y_axis = length(p.xz) - AXIS_THICKNESS;
+
+    // combine all three
+    return min(min(x_axis, y_axis), z_axis);
+}
+
+// intersection of the shape and the boundary box
+// union between the axes and the clipped shape
 fn get_dist(p: vec3<f32>) -> f32 {
-    // 1. Calculate half-extents of the box from our uniforms
-    let half_size = (plot_config.max_bounds - plot_config.min_bounds) * 0.5;
-    let center = (plot_config.max_bounds + plot_config.min_bounds) * 0.5;
+    let axes = get_axes(p);
+    let boundary_box = boundary_box(p, plot_config.min_bounds, plot_config.max_bounds);
+    let shape = get_implicit_formula(p);
+    // get the intersection
+    let clipped_shape = max(boundary_box, shape);
 
-    // 2. Distance to the bounding box
-    let d_box = box(p - center, half_size);
-
-    // 3. Distance to the user's graph
-    let d_graph = get_implicit_formula(p);
-
-    // 4. THE MAGIC: Intersection
-    // Using max(d_box, d_graph) clips the graph to the box
-    let clipped_graph = max(d_box, d_graph);
-
-    let axes = make_coordinate(p);
-    return min(axes, clipped_graph);
+    return min(axes, clipped_shape); // get the union
 }
 
 // get normal for the Lambert diffusion
-// normal vector is gradient of the implicit function 
 fn calc_norm_coord(p: vec3<f32>) -> vec3<f32> {
     let eps_vec = vec2<f32>(EPS, 0.0);
     let grad_impl = vec3<f32>(
@@ -92,7 +89,6 @@ fn vs_main(@builtin(vertex_index) vid: u32) -> VSOut {
     );
 
     let p = pos[vid];
-
     let uv = (p * 0.5) + vec2<f32>(0.5, 0.5);
 
     return VSOut(vec4<f32>(p, 0.0, 1.0), uv);
@@ -102,15 +98,14 @@ fn vs_main(@builtin(vertex_index) vid: u32) -> VSOut {
 fn fs_main(in: VSOut) -> @location(0) vec4<f32> {
     let xy = (in.uv * 2.0 - 1.0) * vec2<f32>(camera.aspect_ratio, 1.0);
 
-    let world_up = vec3<f32>(0.0, 1.0, 0.0);
-
     // camera vectors
     let camera_forward = normalize(camera.camera_pointing_at - camera.position);
-    let camera_right = normalize(cross(camera_forward, world_up));
+    let camera_right = normalize(cross(camera_forward, WORLD_UP));
     let camera_up = cross(camera_right, camera_forward);
 
-    let r_o = camera.position; // ray from the camera
-    let r_d = normalize(camera_right * xy.x + camera_up * xy.y + camera_forward); // ray moves with camera
+    // RayEquation : P(t) = r_o + d_o * r_d
+    let r_o = camera.position; // ray from the camera origin
+    let r_d = normalize(camera_right * xy.x + camera_up * xy.y + camera_forward);
 
     // marching ray loop
     var d_o = 0.0; // distance from the origin
@@ -119,7 +114,7 @@ fn fs_main(in: VSOut) -> @location(0) vec4<f32> {
     for (var i = 0; i < MAX_STEPS; i++) {
         let p = r_o + r_d * d_o;
         let d_s = get_dist(p);
-        d_o += d_s;
+        d_o += d_s * 0.5; // multiplied with a relaxation for a better convergence
 
         if d_o > MAX_DIST || d_s < SURFACE_DIST {
             if d_s < SURFACE_DIST {
@@ -131,43 +126,19 @@ fn fs_main(in: VSOut) -> @location(0) vec4<f32> {
 
     // Lambert
     var color = vec3<f32>(0.05, 0.05, 0.1);
-
     if hit {
         let p = r_o + r_d * d_o;
         let n = calc_norm_coord(p);
+        let light_pos = vec3<f32>(8.0, 8.0, 8.0);
+        let l = normalize(light_pos - p);
 
-        // distances at the hit point to see "who" is hit
-        let d_axes = make_coordinate(p);
-        let d_graph = get_implicit_formula(p);
-
-        var base_color = vec3<f32>(0.0);
-
-        // Check if we hit the Graph first
-        if d_graph < d_axes {
-            // shape 
-            base_color = vec3<f32>(0.8, 0.8, 0.9);
-        } else {
-            // hit an axis, now determine which one
-            let x_dist = length(p.yz);
-            let y_dist = length(p.xz);
-            let z_dist = length(p.xy);
-
-            if x_dist < y_dist && x_dist < z_dist {
-                base_color = vec3<f32>(1.0, 0.1, 0.1); // Red X
-            } else if y_dist < z_dist {
-                base_color = vec3<f32>(0.1, 1.0, 0.1); // Green Y
-            } else {
-                base_color = vec3<f32>(0.1, 0.1, 1.0); // Blue Z
-            }
-        }
-
-        // Lighting
-        let light_position = vec3<f32>(8.0, 8.0, 8.0);
-        let l = normalize(light_position - p);
         let diffuse = max(dot(n, l), 0.0);
+        let ambient = 0.1;
 
-        let final_color = base_color * diffuse + 0.01;
-        return vec4<f32>(final_color, 1.0);
+        let object_color = vec4<f32>(0.8, 0.8, 0.9, 1.0);
+        let final_rgb = object_color.rgb * (diffuse + ambient);
+
+        return vec4<f32>(final_rgb, 1.0);
     }
 
     return vec4<f32>(color, 1.0);
