@@ -1,7 +1,7 @@
-const EPS: f32 = 0.1;
-const MAX_STEPS: i32 = 256;
+const EPS: f32 = 0.001;
+const MAX_STEPS: i32 = 512;
 const SURFACE_DIST: f32 = 0.0001;
-const MAX_DIST: f32 = 100.0;
+const MAX_DIST: f32 = 128.0;
 const AXIS_THICKNESS: f32 = 0.1;
 const WORLD_UP: vec3<f32> = vec3<f32>(0.0, 1.0, 0.0);
 const ZERO_VECTOR: vec3<f32> = vec3<f32>(0.0, 0.0, 0.0);
@@ -56,26 +56,38 @@ fn get_axes(p: vec3<f32>) -> f32 {
     return min(min(x_axis, y_axis), z_axis);
 }
 
+// gradient calculation
+fn grad_calc(p: vec3<f32>) -> vec3<f32> {
+    let eps_vec = vec2<f32>(EPS, 0.0);
+    let grad_vec = vec3<f32>(
+        get_implicit_formula(p + eps_vec.xyy) - get_implicit_formula(p - eps_vec.xyy),
+        get_implicit_formula(p + eps_vec.yxy) - get_implicit_formula(p - eps_vec.yxy),
+        get_implicit_formula(p + eps_vec.yyx) - get_implicit_formula(p - eps_vec.yyx)
+    ) / (2.0 * EPS);
+
+    return grad_vec;
+}
+
 // intersection of the shape and the boundary box
 // union between the axes and the clipped shape
-fn get_dist(p: vec3<f32>) -> f32 {
+fn get_hart_dist(p: vec3<f32>) -> f32 {
     let axes = get_axes(p);
     let boundary_box = boundary_box(p, plot_config.min_bounds, plot_config.max_bounds);
-    let shape = get_implicit_formula(p);
-    // get the intersection
-    let clipped_shape = max(boundary_box, shape);
 
-    return min(axes, clipped_shape); // get the union
+    // Calculate the "safe" distance for the implicit shape
+    let f = get_implicit_formula(p);
+    let g = grad_calc(p);
+    let shape_dist = abs(f) / max(length(g), 0.0001);
+
+    // Combine them just like your old get_dist
+    let clipped_shape = max(boundary_box, shape_dist);
+    return min(axes, clipped_shape);
 }
 
 // get normal for the Lambert diffusion
 fn calc_norm_coord(p: vec3<f32>) -> vec3<f32> {
     let eps_vec = vec2<f32>(EPS, 0.0);
-    let grad_impl = vec3<f32>(
-        get_implicit_formula(p + eps_vec.xyy) - get_implicit_formula(p - eps_vec.xyy),
-        get_implicit_formula(p + eps_vec.yxy) - get_implicit_formula(p - eps_vec.yxy),
-        get_implicit_formula(p + eps_vec.yyx) - get_implicit_formula(p - eps_vec.yyx)
-    );
+    let grad_impl = grad_calc(p);
     return normalize(grad_impl);
 }
 
@@ -113,8 +125,8 @@ fn fs_main(in: VSOut) -> @location(0) vec4<f32> {
 
     for (var i = 0; i < MAX_STEPS; i++) {
         let p = r_o + r_d * d_o;
-        let d_s = get_dist(p);
-        d_o += d_s * 0.5; // multiplied with a relaxation for a better convergence
+        let d_s = get_hart_dist(p) * 0.5;
+        d_o += d_s; // multiplied with a relaxation for a better convergence
 
         if d_o > MAX_DIST || d_s < SURFACE_DIST {
             if d_s < SURFACE_DIST {
@@ -129,7 +141,7 @@ fn fs_main(in: VSOut) -> @location(0) vec4<f32> {
     if hit {
         let p = r_o + r_d * d_o;
         let n = calc_norm_coord(p);
-        let light_pos = vec3<f32>(8.0, 8.0, 8.0);
+        let light_pos = vec3<f32>(1.0, 10.0, 3.0);
         let l = normalize(light_pos - p);
 
         let diffuse = max(dot(n, l), 0.0);
