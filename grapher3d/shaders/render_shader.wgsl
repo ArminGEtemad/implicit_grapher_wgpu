@@ -126,7 +126,7 @@ fn fs_main(in: VSOut) -> @location(0) vec4<f32> {
     for (var i = 0; i < MAX_STEPS; i++) {
         let p = r_o + r_d * d_o;
         let d_s = get_hart_dist(p) * 0.5;
-        d_o += d_s; // multiplied with a relaxation for a better convergence
+        d_o += d_s;
 
         if d_o > MAX_DIST || d_s < SURFACE_DIST {
             if d_s < SURFACE_DIST {
