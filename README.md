@@ -15,12 +15,17 @@ This project is my second large learning project journey into GPU programming.
 
 ## Milestones
 
+### Third Focus
+
+- [ ] Adding a better camera (Quaternions)
+- [ ] Testing other methods of raymarching (step marching)
+
 ### Second Focus
 
 - [x] Basic Transpiler
 - [x] Handling User Implicit Equation in Realtime
-- [ ] Handling Shading artifacts and dark spots
-- [ ] Adding a better camera (Quaternions)
+- [x] Handling Shading artifacts and dark spots
+- [ ] Adding Antialiasing
 
 ### First Focus
 
