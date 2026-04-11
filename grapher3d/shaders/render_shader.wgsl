@@ -1,10 +1,11 @@
 const EPS: f32 = 0.001;
-const MAX_STEPS: i32 = 512;
+const MAX_STEPS: i32 = 128;
 const SURFACE_DIST: f32 = 0.0001;
 const MAX_DIST: f32 = 128.0;
 const AXIS_THICKNESS: f32 = 0.1;
 const WORLD_UP: vec3<f32> = vec3<f32>(0.0, 1.0, 0.0);
 const ZERO_VECTOR: vec3<f32> = vec3<f32>(0.0, 0.0, 0.0);
+const SCREEN_HEIGHT: f32 = 800.0; // TODO: const for now and if worked passed by buffer to the gpu
 
 struct Camera {
     position: vec3<f32>,
@@ -109,11 +110,15 @@ fn vs_main(@builtin(vertex_index) vid: u32) -> VSOut {
 @fragment
 fn fs_main(in: VSOut) -> @location(0) vec4<f32> {
     let xy = (in.uv * 2.0 - 1.0) * vec2<f32>(camera.aspect_ratio, 1.0);
+    let CAMERA_FIELD_OF_VIEW: f32 = 30.0; // Experimental number
 
     // camera vectors
     let camera_forward = normalize(camera.camera_pointing_at - camera.position);
     let camera_right = normalize(cross(camera_forward, WORLD_UP));
     let camera_up = cross(camera_right, camera_forward);
+
+    // pixel foot print constants 
+    let fov_n = 2.0 * tan(radians(CAMERA_FIELD_OF_VIEW / 2.0)) / SCREEN_HEIGHT;
 
     // RayEquation : P(t) = r_o + d_o * r_d
     let r_o = camera.position; // ray from the camera origin
@@ -121,37 +126,44 @@ fn fs_main(in: VSOut) -> @location(0) vec4<f32> {
 
     // marching ray loop
     var d_o = 0.0; // distance from the origin
-    var hit = false;
+    var min_d = MAX_DIST;
+    var res_p = ZERO_VECTOR; // stores the point where the ray gets the closest
 
     for (var i = 0; i < MAX_STEPS; i++) {
         let p = r_o + r_d * d_o;
-        let d_s = get_hart_dist(p) * 0.5;
-        d_o += d_s;
+        let d_s = get_hart_dist(p);
+
+        if d_s < min_d {
+            min_d = d_s;
+            res_p = p;
+        }
+
+        d_o += d_s * 0.5;
 
         if d_o > MAX_DIST || d_s < SURFACE_DIST {
-            if d_s < SURFACE_DIST {
-                hit = true;
-                break;
-            }
+
+            break;
         }
     }
 
     // Lambert
     var color = vec3<f32>(0.05, 0.05, 0.1);
-    if hit {
-        let p = r_o + r_d * d_o;
-        let n = calc_norm_coord(p);
-        let light_pos = vec3<f32>(1.0, 10.0, 3.0);
-        let l = normalize(light_pos - p);
 
-        let diffuse = max(dot(n, l), 0.0);
-        let ambient = 0.1;
+    let p = r_o + r_d * d_o;
+    // calculate the alpha for AA
+    let pixel_footprint = d_o * fov_n;
 
-        let object_color = vec4<f32>(0.8, 0.8, 0.9, 1.0);
-        let final_rgb = object_color.rgb * (diffuse + ambient);
+    let alpha = 1.0 - clamp(min_d / pixel_footprint, 0.0, 1.0);
+    let n = calc_norm_coord(res_p);
+    let light_pos = vec3<f32>(10.0, 5.0, 15.0);
+    let l = normalize(light_pos - res_p);
 
-        return vec4<f32>(final_rgb, 1.0);
-    }
+    let diffuse = max(dot(n, l), 0.0);
+    let ambient = 0.1;
 
-    return vec4<f32>(color, 1.0);
+    let object_color = vec4<f32>(0.8, 0.8, 0.9, 1.0);
+    let surface_color = object_color.rgb * (diffuse + ambient);
+    let final_color = mix(color, surface_color, alpha);
+
+    return vec4<f32>(final_color, 1.0);
 }
