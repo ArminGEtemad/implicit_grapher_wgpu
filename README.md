@@ -25,7 +25,7 @@ This project is my second large learning project journey into GPU programming.
 - [x] Basic Transpiler
 - [x] Handling User Implicit Equation in Realtime
 - [x] Handling Shading artifacts and dark spots
-- [ ] Adding Antialiasing
+- [x] Adding Antialiasing
 
 ### First Focus
 
