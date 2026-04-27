@@ -1,10 +1,15 @@
 const EPS: f32 = 0.001;
-const MAX_STEPS: i32 = 512;
+const MAX_STEPS: i32 = 256;
 const SURFACE_DIST: f32 = 0.0001;
 const MAX_DIST: f32 = 128.0;
 const AXIS_THICKNESS: f32 = 0.1;
 const WORLD_UP: vec3<f32> = vec3<f32>(0.0, 1.0, 0.0);
 const ZERO_VECTOR: vec3<f32> = vec3<f32>(0.0, 0.0, 0.0);
+const BACKGROUND_COLOR: vec3<f32> = vec3<f32>(0.05, 0.05, 0.1);
+
+// for now hard coded
+const HEIGHT: f32 = 800.0;
+const WIDTH: f32 = 1200.0;
 
 struct Camera {
     position: vec3<f32>,
@@ -18,6 +23,23 @@ struct PlotConfig {
     _pad1: f32,
     max_bounds: vec3<f32>,
     _pad2: f32,
+};
+
+struct RayMarcherOutput {
+    color: vec3<f32>,
+    depth: f32,
+    surface_normal: vec3<f32>,
+    hit: f32,
+};
+
+struct AxisDesc {
+    dist: f32,
+    normal: vec3<f32>,
+};
+
+struct ImplicitShapeDesc {
+    dist: f32,
+    normal: vec3<f32>,
 };
 
 @group(0) @binding(0)
@@ -46,17 +68,30 @@ fn boundary_box(p: vec3<f32>, min_bounds: vec3<f32>, max_bounds: vec3<f32>) -> f
 }
 
 // draw axes
-fn get_axes(p: vec3<f32>) -> f32 {
+fn get_axes(p: vec3<f32>) -> AxisDesc {
     // SDF for cylinder
     let x_axis = length(p.yz) - AXIS_THICKNESS;
     let z_axis = length(p.xy) - AXIS_THICKNESS;
     let y_axis = length(p.xz) - AXIS_THICKNESS;
 
-    // combine all three
-    return min(min(x_axis, y_axis), z_axis);
+    var closest = x_axis;
+    var normal = normalize(vec3<f32>(0.0, p.y, p.z));
+
+    if y_axis < closest {
+        closest = y_axis;
+        normal = normalize(vec3<f32>(p.x, 0.0, p.z));
+    }
+
+    if z_axis < closest {
+        closest = z_axis;
+        normal = normalize(vec3<f32>(p.x, p.y, 0.0));
+    }
+
+    return AxisDesc(closest, normal);
 }
 
-// gradient calculation
+// gradient calculation for an implicit surface 
+// results in the normal vector
 fn grad_calc(p: vec3<f32>) -> vec3<f32> {
     let eps_vec = vec2<f32>(EPS, 0.0);
     let grad_vec = vec3<f32>(
@@ -68,27 +103,84 @@ fn grad_calc(p: vec3<f32>) -> vec3<f32> {
     return grad_vec;
 }
 
-// intersection of the shape and the boundary box
-// union between the axes and the clipped shape
-fn get_hart_dist(p: vec3<f32>) -> f32 {
-    let axes = get_axes(p);
-    let boundary_box = boundary_box(p, plot_config.min_bounds, plot_config.max_bounds);
+fn get_hart_shape(p: vec3<f32>) -> ImplicitShapeDesc {
+    let box_dist = boundary_box(p, plot_config.min_bounds, plot_config.max_bounds);
 
+    // intersection of the shape and the boundary box
     // Calculate the "safe" distance for the implicit shape
     let f = get_implicit_formula(p);
     let g = grad_calc(p);
-    let shape_dist = abs(f) / max(length(g), 0.0001);
-
-    // Combine them just like your old get_dist
-    let clipped_shape = max(boundary_box, shape_dist);
-    return min(axes, clipped_shape);
+    let clipped_shape_dist = max(box_dist, abs(f) / max(length(g), 0.0001));
+    let n = g / max(length(g), 0.0001);
+    return ImplicitShapeDesc(clipped_shape_dist, n);
 }
 
-// get normal for the Lambert diffusion
-fn calc_norm_coord(p: vec3<f32>) -> vec3<f32> {
-    let eps_vec = vec2<f32>(EPS, 0.0);
-    let grad_impl = grad_calc(p);
-    return normalize(grad_impl);
+// union between the axes and the clipped shape
+fn shape_axes_combination(p: vec3<f32>) -> f32 {
+    let axes_dist = get_axes(p).dist;
+    let shape_dist = get_hart_shape(p).dist;
+
+    return min(axes_dist, shape_dist);
+}
+
+// raymarching logic
+fn raymarcher(uv: vec2<f32>) -> RayMarcherOutput {
+    let xy = (uv * 2.0 - 1.0) * vec2<f32>(camera.aspect_ratio, 1.0);
+
+    // define camera directions
+    let camera_forward = normalize(camera.camera_pointing_at - camera.position);
+    let camera_right = normalize(cross(camera_forward, WORLD_UP));
+    let camera_up = cross(camera_right, camera_forward);
+
+    // ray equation p(t) = r_o + d_o * r_d
+    let r_o = camera.position;
+    let r_d = normalize(camera_right * xy.x + camera_up * xy.y + camera_forward);
+
+    // marching loop
+    var d_o = 0.0;
+    var hit = false;
+
+    for (var i = 0; i < MAX_STEPS; i++) {
+        let p = r_o + d_o * r_d;
+        let d_s = shape_axes_combination(p) * 0.5;
+        d_o += d_s;
+
+        if d_o > MAX_DIST || d_s < SURFACE_DIST {
+            if d_s < SURFACE_DIST {
+                hit = true;
+                break;
+            }
+        }
+    }
+
+    // Lambert
+    var color = BACKGROUND_COLOR;
+    if hit {
+        let p = r_o + r_d * d_o;
+
+        let axes = get_axes(p);
+        let shape = get_hart_shape(p);
+
+        var n = ZERO_VECTOR;
+        if axes.dist < shape.dist {
+            n = axes.normal;
+        } else {
+            n = shape.normal;
+        }
+
+        let light_pos = vec3<f32>(1.0, 10.0, 3.0);
+        let l = normalize(light_pos - p);
+
+        let diffuse = max(dot(n, l), 0.0);
+        let ambient = 0.1;
+
+        let object_color = vec4<f32>(0.8, 0.8, 0.9, 1.0);
+        let final_rgb = object_color.rgb * (diffuse + ambient);
+
+        return RayMarcherOutput(final_rgb, d_o, n, 1.0);
+    }
+
+    return RayMarcherOutput(BACKGROUND_COLOR, MAX_DIST, vec3<f32>(0.0), 0.0);
 }
 
 @vertex
@@ -108,50 +200,39 @@ fn vs_main(@builtin(vertex_index) vid: u32) -> VSOut {
 
 @fragment
 fn fs_main(in: VSOut) -> @location(0) vec4<f32> {
-    let xy = (in.uv * 2.0 - 1.0) * vec2<f32>(camera.aspect_ratio, 1.0);
+    let raymarcher_result = raymarcher(in.uv);
 
-    // camera vectors
-    let camera_forward = normalize(camera.camera_pointing_at - camera.position);
-    let camera_right = normalize(cross(camera_forward, WORLD_UP));
-    let camera_up = cross(camera_right, camera_forward);
+    // edge detection
+    let depth_delta = fwidth(raymarcher_result.depth) / (raymarcher_result.depth + 0.1);
+    let normal_delta = length(fwidth(raymarcher_result.surface_normal));
+    let hit_delta = fwidth(raymarcher_result.hit);
 
-    // RayEquation : P(t) = r_o + d_o * r_d
-    let r_o = camera.position; // ray from the camera origin
-    let r_d = normalize(camera_right * xy.x + camera_up * xy.y + camera_forward);
+    // is it the edge?
+    let is_edge = hit_delta > 0.0 || depth_delta > 0.05 || normal_delta > 0.1;
 
-    // marching ray loop
-    var d_o = 0.0; // distance from the origin
-    var hit = false;
+    // oversampling for the edge only
+    let grid_offset = array<vec2<f32>, 4>(
+        vec2<f32>(-0.25, -0.25),
+        vec2<f32>(0.25, -0.25),
+        vec2<f32>(-0.25, 0.25),
+        vec2<f32>(0.25, 0.25),
+    );
 
-    for (var i = 0; i < MAX_STEPS; i++) {
-        let p = r_o + r_d * d_o;
-        let d_s = get_hart_dist(p) * 0.5;
-        d_o += d_s;
+    var oversampled_raymarcher_color = vec3<f32>(0.0);
+    var color = raymarcher_result.color;
+    if is_edge {
+        let dx = 1.0 / WIDTH;
+        let dy = 1.0 / HEIGHT;
 
-        if d_o > MAX_DIST || d_s < SURFACE_DIST {
-            if d_s < SURFACE_DIST {
-                hit = true;
-                break;
-            }
+        for (var i = 0; i < 4; i++) {
+            let sub_xy = in.uv + vec2<f32>(grid_offset[i].x * dx, grid_offset[i].y * dy);
+
+            color += raymarcher(sub_xy).color;
         }
+        oversampled_raymarcher_color = color * 0.2; // averaged color after oversampling
+    } else {
+        oversampled_raymarcher_color = raymarcher_result.color;
     }
 
-    // Lambert
-    var color = vec3<f32>(0.05, 0.05, 0.1);
-    if hit {
-        let p = r_o + r_d * d_o;
-        let n = calc_norm_coord(p);
-        let light_pos = vec3<f32>(1.0, 10.0, 3.0);
-        let l = normalize(light_pos - p);
-
-        let diffuse = max(dot(n, l), 0.0);
-        let ambient = 0.1;
-
-        let object_color = vec4<f32>(0.8, 0.8, 0.9, 1.0);
-        let final_rgb = object_color.rgb * (diffuse + ambient);
-
-        return vec4<f32>(final_rgb, 1.0);
-    }
-
-    return vec4<f32>(color, 1.0);
+    return vec4<f32>(oversampled_raymarcher_color, 1.0);
 }
