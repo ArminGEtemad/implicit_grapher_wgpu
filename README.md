@@ -18,7 +18,7 @@ This project is my second large learning project journey into GPU programming.
 ### Third Focus
 
 - [ ] Adding a better camera (Quaternions)
-- [ ] Testing other methods of raymarching (step marching)
+- [ ] Adding dynamic scene (time as a parameter)
 
 ### Second Focus
 
