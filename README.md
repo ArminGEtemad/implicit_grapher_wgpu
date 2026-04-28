@@ -18,7 +18,8 @@ This project is my second large learning project journey into GPU programming.
 ### Third Focus
 
 - [ ] Adding a better camera (Quaternions)
-- [ ] Adding dynamic scene (time as a parameter)
+- [ ] Adding jitter for Anti-Aliasing
+- [x] Adding dynamic scene (time as a parameter)
 
 ### Second Focus
 
@@ -78,6 +79,46 @@ and the functions
 | O                              | Camera points towards the origin of the coordinates                  |
 
 ## Screen Shots and GIFs
+
+### Third Focus
+
+Program can now handle time dependent graphs
+
+```math
+cos(x) + cos(y) + cos(z) - sin(t)
+```
+
+<div style="display: flex; gap: 100px; align-items: flex-start;">
+
+  <div>
+    <img src="docs/GIFs/Cosmic.gif" width="1000"/>
+  </div>
+
+</div>
+
+```math
+(\frac{2.5 }{x^2 + y^2 + z^2 + 0.1} ) + (\frac{2.5}{(x - 2\cdot sin(t))^2 + y^2 + z^2 + 0.1} ) - 2.0
+```
+
+<div style="display: flex; gap: 100px; align-items: flex-start;">
+
+  <div>
+    <img src="docs/GIFs/secondExampl.gif" width="1000"/>
+  </div>
+
+</div>
+
+```math
+y - sin(x + t) * cos(z + t)
+```
+
+<div style="display: flex; gap: 100px; align-items: flex-start;">
+
+  <div>
+    <img src="docs/GIFs/thirdExampl.gif" width="1000"/>
+  </div>
+
+</div>
 
 ### Second Focus
 
