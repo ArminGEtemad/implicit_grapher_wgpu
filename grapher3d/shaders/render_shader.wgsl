@@ -25,6 +25,12 @@ struct PlotConfig {
     _pad2: f32,
 };
 
+struct DynamicScene {
+    time: f32,
+    frame_count: u32,
+    _pad0: vec2<f32>,
+};
+
 struct RayMarcherOutput {
     color: vec3<f32>,
     depth: f32,
@@ -47,6 +53,9 @@ var<uniform> camera: Camera;
 
 @group(0) @binding(1)
 var<uniform> plot_config: PlotConfig;
+
+@group(0) @binding(2)
+var<uniform> scene: DynamicScene;
 
 struct VSOut {
     @builtin(position) pos: vec4<f32>,
