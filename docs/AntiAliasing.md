@@ -1,5 +1,15 @@
 # AntiAliasing
 
+When there is no anti-aliasing method
+
+<div style="display: flex; gap: 100px; align-items: flex-start;">
+
+  <div>
+    <img src="Pics/noAA1.png" width="1000"/>
+  </div>
+
+</div>
+
 ## Distance based Alpha
 
 My first attempt to get rid of the aliasing in the grapher was to change the Sphere trancing a little bit. In the vanilla sphere tracing the ray either hits the surface or not (boolean 1, 0);
@@ -50,6 +60,33 @@ I wanted to test something. What if I look at the ground truth and then I can kn
 
   <div>
     <img src="Pics/supersampled2.png" width="1000"/>
+  </div>
+
+</div>
+
+## Adaptive oversampling
+
+Instead of doing oversampling everywhere we can just do it where it is necessary. My first attemped was to detect where the edge of the shape is by comparing the colors and only do the oversampling if the background color was behind the shape
+
+<div style="display: flex; gap: 100px; align-items: flex-start;">
+
+  <div>
+    <img src="Pics/adptive_no_edge_detection.png" width="1000"/>
+  </div>
+
+</div>
+
+which led to the problem of occlusion. If part of the shape is in front of itself, the edge detection does not work correctly
+
+## Adaptive oversampling with edge detection
+
+So I decided to add more cases to detect the edge. For example how fast a normal vector changes its direction.
+the result shows
+
+<div style="display: flex; gap: 100px; align-items: flex-start;">
+
+  <div>
+    <img src="Pics/adapriveOversampling_occlusion_aliasing.png" width="1000"/>
   </div>
 
 </div>
