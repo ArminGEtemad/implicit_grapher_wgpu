@@ -122,7 +122,13 @@ impl Expr {
     pub fn to_wgsl_code(&self) -> String {
         match self {
             Expr::Number(n) => format!("{:.2}", n),
-            Expr::Variable(v) => format!("p.{}", v),
+            Expr::Variable(v) => {
+                match v.as_str() {
+                    "t" => "scene.time".to_string(),
+                    "x" | "y" | "z" => format!("p.{}", v),
+                    _ => format!("p.{}", v), // Fallback or handle error
+                }
+            }
 
             Expr::Unary(op, expr) => {
                 let inner = expr.to_wgsl_code();
@@ -198,11 +204,11 @@ impl Parser {
                 self.pos += 1;
 
                 // only x, y, and z are correct variables
-                if v == "x" || v == "y" || v == "z" {
+                if v == "x" || v == "y" || v == "z" || v == "t" {
                     Ok(Box::new(Expr::Variable(v)))
                 } else {
                     Err(format!(
-                        "Unknown Variable: {}, Only x, y and z are allowed!",
+                        "Unknown Variable: {}, Only x, y, z and t are allowed!",
                         v
                     ))
                 }
