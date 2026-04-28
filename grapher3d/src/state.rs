@@ -1,6 +1,7 @@
 use std::{
     collections::HashSet,
     sync::{Arc, mpsc},
+    time,
 };
 use wgpu::SurfaceError;
 use winit::{
@@ -27,6 +28,8 @@ pub struct State {
     camera_pointing_at: [f32; 3],     // x, y, z
     plot_limits_min: [f32; 3],        // x, y, z
     plot_limits_max: [f32; 3],        // x, y, z
+    start_time: time::Instant,
+    frame_count: u32,
     current_formula: String,
     shader_watcher: ShaderWatcher,
 }
@@ -49,6 +52,9 @@ impl State {
         let plot_limits_min = [-15.0, -15.0, -15.0];
         let plot_limits_max = [15.0, 15.0, 15.0];
 
+        let start_time = time::Instant::now();
+        let frame_count = 0_u32;
+
         let shader_watcher = ShaderWatcher::new(shader_path);
         let current_formula = implicit_fomula.to_string();
         println!("Currently Showing: {}", current_formula);
@@ -61,6 +67,8 @@ impl State {
             camera_pointing_at,
             plot_limits_min,
             plot_limits_max,
+            start_time,
+            frame_count,
             current_formula,
             shader_watcher,
         };
@@ -250,6 +258,12 @@ impl State {
             self.connector
                 .rebuild_pipeline(&self.gpu_res, &self.current_formula);
         }
+
+        let elapsed = self.start_time.elapsed().as_secs_f32();
+        self.frame_count += 1;
+
+        self.connector
+            .update_scene(&self.gpu_res, elapsed, self.frame_count);
 
         let mut frame: FrameContext = self.gpu_res.begin_frame()?;
         self.connector.render_pass(&mut frame);

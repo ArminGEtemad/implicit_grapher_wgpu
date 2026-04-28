@@ -41,9 +41,18 @@ pub struct PlotConfigUniform {
     pub _pad1: f32,
 }
 
+#[repr(C)]
+#[derive(Debug, Clone, Copy, Pod, Zeroable)]
+pub struct DynamicSceneUniform {
+    pub time: f32,
+    pub frame_count: u32,
+    pub _pad0: [f32; 2],
+}
+
 pub struct GpuConnector {
     camera_buffer: Buffer,
     plot_config_buffer: Buffer,
+    dynamic_scene_buffer: Buffer,
     render_bgl: BindGroupLayout,
     render_bg: BindGroup,
     render_pipeline: RenderPipeline,
@@ -104,6 +113,19 @@ impl GpuConnector {
             usage: BufferUsages::UNIFORM | BufferUsages::COPY_DST,
         });
 
+        // initializing dynamic scene
+        let dynamic_scene_contents = DynamicSceneUniform {
+            time: 0.0_f32,
+            frame_count: 0_u32,
+            _pad0: [0.0; 2],
+        };
+
+        let dynamic_scene_buffer = device.create_buffer_init(&BufferInitDescriptor {
+            label: Some("Time Buffer"),
+            contents: cast_slice(&[dynamic_scene_contents]),
+            usage: BufferUsages::UNIFORM | BufferUsages::COPY_DST,
+        });
+
         // BGL
         let render_bgl = device.create_bind_group_layout(&BindGroupLayoutDescriptor {
             label: Some("Render BGL"),
@@ -130,6 +152,17 @@ impl GpuConnector {
                     },
                     count: None,
                 },
+                BindGroupLayoutEntry {
+                    // dynamic scene
+                    binding: 2,
+                    visibility: ShaderStages::FRAGMENT,
+                    ty: BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
             ],
         });
 
@@ -147,6 +180,11 @@ impl GpuConnector {
                     // plot config
                     binding: 1,
                     resource: plot_config_buffer.as_entire_binding(),
+                },
+                BindGroupEntry {
+                    // dynamic scene
+                    binding: 2,
+                    resource: dynamic_scene_buffer.as_entire_binding(),
                 },
             ],
         });
@@ -190,6 +228,7 @@ impl GpuConnector {
         Self {
             camera_buffer,
             plot_config_buffer,
+            dynamic_scene_buffer,
             render_bgl,
             render_bg,
             render_pipeline: fullscreen_pipeline,
@@ -243,6 +282,20 @@ impl GpuConnector {
             &self.camera_buffer,
             0,
             cast_slice(&[updated_camera_pos_buffer_contents]),
+        );
+    }
+
+    pub fn update_scene(&self, gpu_res: &GpuResource, time: f32, frame_count: u32) {
+        let updated_dynamic_scene_contents = DynamicSceneUniform {
+            time,
+            frame_count,
+            _pad0: [0.0; 2],
+        };
+
+        gpu_res.queue.write_buffer(
+            &self.dynamic_scene_buffer,
+            0,
+            cast_slice(&[updated_dynamic_scene_contents]),
         );
     }
 
@@ -306,6 +359,10 @@ impl GpuConnector {
                 BindGroupEntry {
                     binding: 1,
                     resource: self.plot_config_buffer.as_entire_binding(),
+                },
+                BindGroupEntry {
+                    binding: 2,
+                    resource: self.dynamic_scene_buffer.as_entire_binding(),
                 },
             ],
         });
