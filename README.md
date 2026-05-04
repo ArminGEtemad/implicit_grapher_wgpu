@@ -38,7 +38,7 @@ in real time using GPU raymarching and more specifically sphere marching. This p
 
 Fully implemented in Rust + WGPU + WGSL
 
-Just like my other project everything I try to explain everything I in [the docs here](docs).
+Just like my other project I try to explain everything I do in [the docs here](docs).
 
 ## How to run?
 
