@@ -38,7 +38,7 @@ impl State {
     pub async fn new(window: Arc<Window>) -> Result<Self, String> {
         let gpu_res = GpuResource::new(window).await?;
         // implicit fomula
-        let implicit_fomula = "y - sin(x) - sin(z)";
+        let implicit_fomula = "cos(x) + cos(y) + cos(z) - sin(t)";
         let connector = GpuConnector::new(&gpu_res, implicit_fomula);
 
         let shader_path = format!("{}/shaders", env!("CARGO_MANIFEST_DIR"));
