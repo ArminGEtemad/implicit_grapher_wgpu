@@ -1,38 +1,54 @@
 # Implicit Grapher WGPU
 
+> version 1.0
+
 A real-time 3D implicit surface grapher written in Rust using `wgpu` + `wgsl`.
 
 The goal of this project is to render surfaces defined by implicit equations  
 of the form
 
 ```math
-f(x, y, z) = 0
+f(x, y, z, t) = 0
 ```
 
-in real time using GPU raymarching.
+Such as
 
-This project is my second large learning project journey into GPU programming.
+```math
+cos(x) + cos(y) + cos(z) - sin(t) = 0
+```
 
-## Milestones
+<div style="display: flex; gap: 100px; align-items: flex-start;">
 
-### Third Focus
+  <div>
+    <img src="docs/GIFs/Cosmic.gif" width="1000"/>
+  </div>
 
-- [ ] Adding a better camera (Quaternions)
-- [ ] Adding jitter for Anti-Aliasing
-- [x] Adding dynamic scene (time as a parameter)
+</div>
 
-### Second Focus
+(I use RTX 4070 Ti Super with a core i7 14th generation)
 
-- [x] Basic Transpiler
-- [x] Handling User Implicit Equation in Realtime
-- [x] Handling Shading artifacts and dark spots
-- [x] Adding Antialiasing
+in real time using GPU raymarching and more specifically sphere marching. This project is my second large learning project journey into GPU programming. In contrast to my [Reaction Diffusion](https://github.com/ArminGEtemad/reaction_diffusion_wgpu) project, here I put more focus on fragment shader and the following features:
 
-### First Focus
+## Features
 
-- [x] Basic WGPU setup
-- [x] Raymarcher prototype
-- [x] Camera Setup
+- Sphere marching (uses Hart's distance estimation so non-Lipschitz surfaces are rendered clean.)
+- Basic Transpiler (A built-in terminal interface that lets you type equations and hit `Enter` to see them rendered instantly.)
+- Adaptive oversampling for Anti-aliasing (a complete edge detection to make sure that the over sampling only happens at the edge of the shapes.)
+- A fully functional camera system to navigate and explore the mathematical creations in 3D space.
+
+Fully implemented in Rust + WGPU + WGSL
+
+Just like my other project everything I try to explain everything I in [the docs here](docs).
+
+## How to run?
+
+You need to clone the project and use cargo to run it.
+
+> git clone https://github.com/ArminGEtemad/implicit_grapher_wgpu.git
+>
+> cd implicit_grapher_wgpu/grapher3d
+>
+> cargo run --release
 
 ## Interactivity
 
@@ -78,23 +94,7 @@ and the functions
 | Mouse wheel                    | Camera zoom in and out                                               |
 | O                              | Camera points towards the origin of the coordinates                  |
 
-## Screen Shots and GIFs
-
-### Third Focus
-
-Program can now handle time dependent graphs
-
-```math
-cos(x) + cos(y) + cos(z) - sin(t)
-```
-
-<div style="display: flex; gap: 100px; align-items: flex-start;">
-
-  <div>
-    <img src="docs/GIFs/Cosmic.gif" width="1000"/>
-  </div>
-
-</div>
+## More GIFs
 
 ```math
 (\frac{2.5 }{x^2 + y^2 + z^2 + 0.1} ) + (\frac{2.5}{(x - 2\cdot sin(t))^2 + y^2 + z^2 + 0.1} ) - 2.0
@@ -120,86 +120,14 @@ y - sin(x + t) * cos(z + t)
 
 </div>
 
-### Second Focus
+## Dependencies
 
-Program can handle human readable math inputs and turn it into WGSL function
+- winit 0.30.12
+- wgpu 28.0.0
+- pollster 0.4.0
+- notify 8.2.0
+- bytemuck 1.24.0
 
-```math
-f(x, y, z) = y - sin(x) - sin(z)
-```
+## License
 
-<div style="display: flex; gap: 100px; align-items: flex-start;">
-
-  <div>
-    <img src="docs/Pics/First.png" width="1000"/>
-  </div>
-
-</div>
-
-```math
-f(x, y, z) = (x^2 + y^2 + z^2 + 0.5^2 - 0.2^2)^2 - 4.0 \cdot 0.5^2 \cdot (x^2 + y^2)
-```
-
-<div style="display: flex; gap: 100px; align-items: flex-start;">
-
-  <div>
-    <img src="docs/Pics/Second.png" width="1000"/>
-  </div>
-
-</div>
-
-```math
-f(x, y, z) = sin^2(x) + sin^2(y) + sin^2(z) - 0.5
-```
-
-<div style="display: flex; gap: 100px; align-items: flex-start;">
-
-  <div>
-    <img src="docs/Pics/Third.png" width="1000"/>
-  </div>
-
-</div>
-
-### First Focus
-
-For now the program has a basic 3D axes for the coordinate sytem.
-
-<div style="display: flex; gap: 100px; align-items: flex-start;">
-
-  <div>
-    <img src="docs/Pics/Coordinates.png" width="1000"/>
-  </div>
-
-</div>
-
-And a functioning camera
-
-### Rotate WASD
-
-<div style="display: flex; gap: 100px; align-items: flex-start;">
-
-  <div>
-    <img src="docs/GIFs/WASD.gif" width="1000"/>
-  </div>
-
-</div>
-
-### Zoom in and out MouseWheel
-
-<div style="display: flex; gap: 100px; align-items: flex-start;">
-
-  <div>
-    <img src="docs/GIFs/MouseWheel.gif" width="1000"/>
-  </div>
-
-</div>
-
-### Slide Along axis and back to origin
-
-<div style="display: flex; gap: 100px; align-items: flex-start;">
-
-  <div>
-    <img src="docs/GIFs/SlideAndKeyO.gif" width="1000"/>
-  </div>
-
-</div>
+This project is under [MIT License](LICENSE).
